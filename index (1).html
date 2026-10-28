@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d2320">
+<title>Absen — Proyek Sport Science USU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Halaman absen untuk HP: satu kolom, tombol besar, jam dari server. */
+:root {
+  --bg: #f4f5f2; --card: #fff; --line: #e2e4de; --ink: #1d2320; --muted: #6f766f; --accent: #e8771c;
+  --hadir: #2e9a5b; --telat: #2f6db5; --tidak: #c62f28; --sakit: #d6336c; --izin: #7a4cc4; --cuti: #d9930d;
+  --display: "Oswald", "Arial Narrow", sans-serif; --body: "Barlow", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.4 var(--body); -webkit-text-size-adjust: 100%; }
+[hidden] { display: none !important; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 480px; margin: 0 auto; padding: max(14px, env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+
+.top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.top .proj { font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.15; }
+.top .tgl { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.top .jam { font-family: var(--mono); font-weight: 600; font-size: 26px; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+
+.me { display: flex; align-items: center; gap: 12px; }
+.ava { flex: none; width: 56px; height: 56px; border-radius: 50%; overflow: hidden; background: #e8ebe5; position: relative; display: grid; place-items: center; font-family: var(--display); font-weight: 600; font-size: 20px; color: #9aa199; }
+.ava img { position: absolute; left: -37.5%; width: 175%; margin-top: -27%; top: 0; }
+.me .who { flex: 1; min-width: 0; }
+.me b { display: block; font-size: 19px; line-height: 1.15; }
+.me span { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.link { border: 0; background: none; padding: 6px 0; color: var(--telat); font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.state { --c: #9aa199; border-left: 6px solid var(--c); display: flex; flex-direction: column; gap: 6px; }
+.state .lbl { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.state .big { font-family: var(--display); font-weight: 600; font-size: 28px; line-height: 1.1; color: var(--c); text-transform: uppercase; letter-spacing: .02em; }
+.state .det { font-size: 15px; }
+.state .det b { font-variant-numeric: tabular-nums; }
+.state.hadir { --c: var(--hadir); } .state.telat { --c: var(--telat); } .state.tidak { --c: var(--tidak); }
+.state.sakit { --c: var(--sakit); } .state.izin { --c: var(--izin); } .state.cuti { --c: var(--cuti); }
+
+.rules { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 14px; margin-top: 4px; }
+.rules .t { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rules .now { background: #fff4e5; border-radius: 4px; margin: 0 -6px; padding: 0 6px; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 3px 10px; border-radius: 99px; background: #eef0ec; color: var(--ink); }
+
+.btn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 56px; padding: 14px 18px; border: 0; border-radius: 12px; font-weight: 700; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; }
+.btn.main { background: var(--accent); color: #fff; min-height: 72px; font-size: 21px; box-shadow: 0 6px 18px rgba(232,119,28,.28); }
+.btn.sec { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); }
+.btn.dark { background: var(--ink); color: #fff; }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn svg { width: 22px; height: 22px; }
+.note { font-size: 13px; color: var(--muted); text-align: center; }
+.warn { background: #fdeceb; color: #9b2620; border: 1px solid #f3c9c6; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 600; }
+.ok { background: #e7f4ec; color: #1f6e41; border: 1px solid #bfe3cc; border-radius: 10px; padding: 10px 12px; font-size: 14px; font-weight: 600; }
+.row2 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 0; padding: 0; list-style: none; }
+.list li { font-size: 14px; padding: 8px 10px; border-radius: 8px; background: #f6f7f4; }
+.list li b { font-family: var(--mono); margin-right: 6px; }
+h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; letter-spacing: .03em; text-transform: uppercase; }
+
+/* Pilih nama */
+.search { width: 100%; padding: 14px 16px; border: 1.5px solid var(--line); border-radius: 12px; background: #fff; font-size: 16px; }
+.names { display: flex; flex-direction: column; gap: 6px; }
+.names button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%; padding: 12px 14px; background: #fff; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.names b { font-size: 17px; }
+.names span { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+
+/* Lembar isian */
+.sheet { position: fixed; inset: 0; z-index: 10; background: rgba(29,35,32,.45); display: flex; align-items: flex-end; justify-content: center; }
+.sheet .panel { width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto; background: var(--card); border-radius: 18px 18px 0 0; padding: 18px 16px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 14px; }
+.seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.seg button { padding: 12px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; font-weight: 700; font-size: 15px; cursor: pointer; }
+.seg button[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: #fff; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.field input, .field select, .field textarea { font-size: 16px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); width: 100%; }
+.field textarea { min-height: 84px; resize: vertical; }
+.hint { font-size: 13px; color: var(--muted); }
+.hint b { color: var(--ink); }
+.msg { color: var(--tidak); font-size: 14px; font-weight: 600; min-height: 1em; white-space: pre-line; }
+.toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; width: min(440px, calc(100% - 32px)); background: var(--ink); color: #fff; padding: 14px 16px; border-radius: 12px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.spin { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: sp .8s linear infinite; }
+.btn.sec .spin { border-color: rgba(0,0,0,.15); border-top-color: var(--ink); }
+@keyframes sp { to { transform: rotate(360deg); } }
+.loading { padding: 40px 0; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><div class="proj" id="proj"></div><div class="tgl" id="tgl"></div></div>
+    <div class="jam" id="jam">--:--</div>
+  </header>
+
+  <div class="loading" id="loading">Memuat…</div>
+
+  <!-- Pilih nama (sekali, lalu diingat HP) -->
+  <section id="pilih" hidden>
+    <h2>Pilih nama Anda</h2>
+    <p class="hint" style="margin:6px 0 12px">Cukup sekali. HP ini akan mengingat nama Anda. Satu HP hanya bisa dipakai absen untuk satu orang per hari.</p>
+    <input class="search" id="cari" type="search" placeholder="Ketik nama…" autocomplete="off">
+    <div class="names" id="names" style="margin-top:10px"></div>
+  </section>
+
+  <!-- Halaman utama -->
+  <section id="utama" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="me">
+      <div class="ava" id="ava"></div>
+      <div class="who"><b id="nama"></b><span id="jabatan"></span></div>
+      <button class="link" id="ganti" type="button">Ganti</button>
+    </div>
+    <div class="warn" id="hpLain" hidden></div>
+    <div class="card state" id="state"></div>
+    <div id="aksi" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="card" id="lemburBox" hidden>
+      <div class="row2"><h2>Lembur hari ini</h2></div>
+      <ul class="list" id="lemburList"></ul>
+    </div>
+    <div class="card" id="cutiBox" hidden></div>
+    <p class="note" id="kaki">Jam absen memakai jam server, bukan jam HP.</p>
+  </section>
+</div>
+
+<!-- Lembar isian -->
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" id="panel"></div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* Halaman ini di-hosting di luar Google supaya HP yang login ke beberapa akun Google tetap bisa absen.
+   Data dikirim ke Apps Script tanpa cookie Google (credentials: 'omit'). */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzow8y4qB557PUskQcZaB8OptFLsrvrQGeMDvbVuFIw5LgBQPLONyUvfXTU6lnWIQ8Nsg/exec';
+let CFG = null, A = null;
+function api(fn, ...args) {
+  return fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args }), credentials: 'omit', redirect: 'follow' })
+    .catch(() => { throw new Error('Gagal terhubung ke server. Periksa sinyal internet, lalu coba lagi.'); })
+    .then(r => r.json())
+    .then(j => { if (!j.ok) throw new Error(j.error); return j.data; });
+}
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pesan = e => String((e && e.message) || e || 'Terjadi kesalahan.').replace(/^Error:\s*/, '');
+const kode = e => { const m = pesan(e).match(/^([A-Z_]+)\|(.*)$/s); return m ? { kode: m[1], teks: m[2] } : { kode: '', teks: pesan(e) }; };
+const titik = hm => String(hm || '').replace(':', '.');
+const simpan = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+const baca = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+
+/* Identitas perangkat: acak, dibuat sekali, disimpan di HP. */
+let DEV = baca('absen_dev');
+if (!DEV || !/^[a-z0-9-]{12,48}$/.test(DEV)) {
+  DEV = 'd-' + ((crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2))).toLowerCase().replace(/[^a-z0-9-]/g, '');
+  simpan('absen_dev', DEV);
+}
+let ID = baca('absen_id'), INFO = null, SELISIH = 0;   // SELISIH = menit (server - HP)
+
+
+/* Jam: mengikuti server (selisih dihitung dari jam server terakhir). */
+function jamServer() { const d = new Date(Date.now() + SELISIH * 60000); return d; }
+const pad = n => String(n).padStart(2, '0');
+const hm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+function tick() { $('jam').textContent = hm(jamServer()).replace(':', '.'); }
+setInterval(tick, 1000); tick();
+
+function toast(t, ms = 4200) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, ms); }
+
+/* ---------- Pilih nama ---------- */
+let DAFTAR = [];
+function tampilPilih() {
+  $('loading').hidden = true; $('utama').hidden = true; $('pilih').hidden = false;
+  if (DAFTAR.length) return isiNama();
+  $('names').innerHTML = '<p class="hint">Memuat daftar…</p>';
+  api('absenDaftar').then(d => { DAFTAR = d; isiNama(); }).catch(e => { $('names').innerHTML = `<p class="msg">${esc(pesan(e))}</p>`; });
+}
+function isiNama() {
+  const q = $('cari').value.trim().toLowerCase();
+  const list = DAFTAR.filter(s => !q || (s.nama + ' ' + s.jabatan).toLowerCase().includes(q));
+  $('names').innerHTML = list.map(s => `<button type="button" data-id="${esc(s.id)}"><b>${esc(s.nama)}</b><span>${esc(s.jabatan || '—')}</span></button>`).join('')
+    || '<p class="hint">Nama tidak ditemukan. Hubungi admin bila nama Anda belum ada.</p>';
+}
+$('cari').addEventListener('input', isiNama);
+$('names').addEventListener('click', e => {
+  const b = e.target.closest('[data-id]'); if (!b) return;
+  const s = DAFTAR.find(x => x.id === b.dataset.id);
+  bukaLembar(`<h2>Konfirmasi</h2><p style="margin:0;font-size:17px">Saya <b>${esc(s.nama)}</b><br><span class="hint">${esc(s.jabatan)}</span></p>
+    <p class="hint">Mengabsenkan orang lain dilarang dan tercatat di riwayat beserta perangkatnya.</p>
+    <button class="btn main" id="ya" type="button">Ya, ini saya</button><button class="btn sec" data-tutup type="button">Bukan</button>`);
+  $('ya').onclick = () => { ID = s.id; simpan('absen_id', ID); tutupLembar(); muat(); };
+});
+$('ganti').addEventListener('click', () => {
+  bukaLembar(`<h2>Ganti nama?</h2><p class="hint">Gunakan hanya bila HP ini memang milik orang lain atau tadi salah memilih nama. Satu HP tetap hanya bisa absen untuk satu orang per hari.</p>
+    <button class="btn dark" id="ya" type="button">Ganti nama</button><button class="btn sec" data-tutup type="button">Batal</button>`);
+  $('ya').onclick = () => { ID = null; simpan('absen_id', null); tutupLembar(); tampilPilih(); };
+});
+
+/* ---------- Muat & tampilkan keadaan ---------- */
+function muat() {
+  if (!ID) return tampilPilih();
+  return api('absenInfo', DEV, ID).then(d => {
+    INFO = d;
+    const [h, m] = d.jam.split(':').map(Number), now = new Date();
+    SELISIH = (h * 60 + m) - (now.getHours() * 60 + now.getMinutes());
+    if (Math.abs(SELISIH) > 720) SELISIH = 0;
+    tick(); tampil();
+  }).catch(e => {
+    const k = kode(e);
+    if (k.kode === 'NAMA_TIDAK_ADA') { ID = null; simpan('absen_id', null); toast(k.teks); return tampilPilih(); }
+    $('loading').hidden = false; $('loading').innerHTML = `<p class="msg">${esc(k.teks)}</p><button class="btn sec" type="button" onclick="muat()">Coba lagi</button>`;
+  });
+}
+let fotoDiminta = '';
+function tampil() {
+  const d = INFO, s = d.status;
+  $('loading').hidden = true; $('pilih').hidden = true; $('utama').hidden = false;
+  $('tgl').textContent = d.tanggal;
+  $('nama').textContent = d.staf.nama; $('jabatan').textContent = d.staf.jabatan || '—';
+  if (fotoDiminta !== d.staf.id) {
+    fotoDiminta = d.staf.id;
+    $('ava').textContent = d.staf.nama.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    if (!window.PREVIEW) api('fotoSaya', d.staf.id).then(f => { if (f && f.url) $('ava').innerHTML = `<img alt="" src="${f.url}">`; }).catch(() => {});
+  }
+  $('hpLain').hidden = !d.hpLain;
+  $('hpLain').textContent = d.hpLain ? `HP ini hari ini sudah dipakai absen atas nama ${d.hpLain}. Satu HP hanya untuk satu orang per hari.` : '';
+
+  const now = hm(jamServer());
+  const masuk = s && (s.status === 'Hadir' || s.status === 'Terlambat') && s.datang;
+  const keg = d.kegiatan.length ? d.kegiatan.join(' / ') : '';
+  let cls = '', lbl = 'Status hari ini', big = 'Belum absen', det = '';
+  if (s) {
+    const tidakIkut = s.absen && s.absen.length ? `Tidak ikut ${esc(s.absen.join(' · '))}` : '';
+    if (s.status === 'Hadir') { cls = 'hadir'; big = 'Hadir'; det = `Masuk <b>${titik(s.datang) || '—'}</b>${tidakIkut ? ' · ' + tidakIkut : ''}${s.ket ? `<br>Alasan: ${esc(s.ket)}` : ''}`; }
+    else if (s.status === 'Terlambat') {
+      cls = 'telat'; big = s.datang ? 'Terlambat' : 'Akan terlambat';
+      det = s.datang ? `Masuk <b>${titik(s.datang)}</b> · ${esc(s.ket)}${tidakIkut ? '<br>' + tidakIkut : ''}` : `${esc(s.ket)}<br><b>Jangan lupa absen masuk begitu tiba.</b>`;
+    }
+    else if (s.status === 'Sakit') { cls = 'sakit'; big = 'Sakit'; det = [esc(s.penyakit), esc(s.progres), s.lanjut ? 'lanjutan — perbarui bila perlu' : ''].filter(Boolean).join(' · '); }
+    else if (s.status === 'Izin') { cls = 'izin'; big = 'Izin'; det = esc(s.ket); }
+    else if (s.status === 'Cuti') {
+      cls = 'cuti'; big = 'Cuti';
+      const kembali = s.mulai ? tglPanjang(tambahHari(s.mulai, d.lamaCuti)) : '';
+      det = `Mulai ${esc(tglPanjang(s.mulai))}${kembali ? ` · kembali <b>${esc(kembali)}</b>` : ''}${s.ket ? '<br>' + esc(s.ket) : ''}<br><span class="hint">Sudah kembali bekerja? Cukup absen masuk.</span>`;
+    }
+    else { cls = 'tidak'; big = s.status; det = esc(s.ket); }
+  } else {
+    const fase = now <= A.masuk ? 0 : now <= A.batasHadir ? 1 : 2;
+    det = `<div class="rules">
+      <span class="t${fase === 0 ? ' now' : ''}">≤ ${titik(A.masuk)}</span><span class="${fase === 0 ? 'now' : ''}">Hadir${keg ? ', ikut ' + esc(keg) : ''}</span>
+      <span class="t${fase === 1 ? ' now' : ''}">s.d. ${titik(A.batasHadir)}</span><span class="${fase === 1 ? 'now' : ''}">Hadir, tidak ikut ${esc(keg || 'kegiatan pagi')} (isi alasan)</span>
+      <span class="t${fase === 2 ? ' now' : ''}">&gt; ${titik(A.batasHadir)}</span><span class="${fase === 2 ? 'now' : ''}">Terlambat (isi alasan)</span></div>`;
+  }
+  $('state').className = 'card state ' + cls;
+  $('state').innerHTML = `<span class="lbl">${lbl}</span><span class="big">${esc(big)}</span><div class="det">${det}</div>`;
+
+  // Tombol
+  const bisaLapor = now <= A.batasLapor && !masuk;
+  let h = '';
+  if (!masuk) h += `<button class="btn main" id="bMasuk" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Absen masuk</button>`;
+  if (bisaLapor) h += `<button class="btn sec" id="bLapor" type="button">Tidak bisa masuk / akan terlambat</button>`;
+  else if (!masuk) h += `<p class="note">Batas lapor sakit, izin, atau terlambat untuk hari ini pukul ${titik(A.batasLapor)} sudah lewat. Hubungi admin.</p>`;
+  if (masuk) h += `<button class="btn dark" id="bLembur" type="button">Isi lembur</button>`;
+  h += `<button class="link" id="bCuti" type="button" style="align-self:center">Ajukan cuti untuk tanggal lain</button>`;
+  $('aksi').innerHTML = h;
+  if ($('bMasuk')) $('bMasuk').onclick = mulaiMasuk;
+  if ($('bLapor')) $('bLapor').onclick = () => formLapor(s && s.status === 'Sakit' ? 'Sakit' : 'Izin');
+  if ($('bLembur')) $('bLembur').onclick = formLembur;
+  $('bCuti').onclick = () => formLapor('Cuti', true);
+
+  // Lembur
+  $('lemburBox').hidden = !d.lembur.length;
+  $('lemburList').innerHTML = d.lembur.map(x => `<li><b>${esc(x.jam)}</b>${esc(x.ket)}</li>`).join('');
+  // Cuti terjadwal
+  const tj = d.terjadwal;
+  $('cutiBox').hidden = !tj;
+  if (tj) {
+    $('cutiBox').innerHTML = `<div class="row2"><div><h2>Cuti terjadwal</h2><p style="margin:6px 0 0">Mulai <b>${esc(tglPanjang(tj.mulai))}</b> · kembali ${esc(tglPanjang(tambahHari(tj.mulai, d.lamaCuti)))}${tj.ket ? '<br><span class="hint">' + esc(tj.ket) + '</span>' : ''}</p></div></div>
+      <button class="link" id="bBatal" type="button">Batalkan cuti ini</button>`;
+    $('bBatal').onclick = () => {
+      bukaLembar(`<h2>Batalkan cuti?</h2><p class="hint">Cuti mulai ${esc(tglPanjang(tj.mulai))} akan dihapus.</p><div class="msg" id="lm"></div>
+        <button class="btn dark" id="ya" type="button">Ya, batalkan</button><button class="btn sec" data-tutup type="button">Tidak</button>`);
+      $('ya').onclick = () => kirim($('ya'), () => api('batalCuti', DEV, ID), () => 'Cuti terjadwal dibatalkan.');
+    };
+  }
+}
+
+/* ---------- Absen masuk ---------- */
+function ambilLokasi() {
+  if (!A.lokasi) return Promise.resolve(null);
+  return new Promise(res => {
+    if (!navigator.geolocation) return res({ err: 'tidak didukung' });
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
+      e => res({ err: e.message || ('kode ' + e.code) }), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+  });
+}
+function mulaiMasuk() {
+  const now = hm(jamServer()), s = INFO.status;
+  const perlu = now > A.masuk && !(s && s.status === 'Terlambat' && s.ket);
+  if (perlu) return formAlasan(now > A.batasHadir ? 'telat' : 'kegiatan');
+  absenMasuk('', $('bMasuk'));
+}
+function formAlasan(jenis) {
+  const keg = INFO.kegiatan.join(' / ') || 'kegiatan pagi';
+  const judul = jenis === 'telat' ? 'Alasan terlambat' : `Alasan tidak ikut ${esc(keg)}`;
+  const info = jenis === 'telat' ? `Sudah lewat ${titik(A.batasHadir)}: tercatat <b>Terlambat</b>${INFO.kegiatan.length ? ` dan tidak ikut ${esc(keg)}` : ''}.`
+    : `Sudah lewat ${titik(A.masuk)}: tercatat <b>Hadir</b>, tetapi tidak ikut ${esc(keg)}.`;
+  bukaLembar(`<h2>${judul}</h2><p class="hint">${info}</p>
+    <label class="field">Alasan<textarea id="alasan" maxlength="120" placeholder="Mis. ban bocor, antar anak sekolah"></textarea></label>
+    <div class="msg" id="lm"></div>
+    <button class="btn main" id="ya" type="button">Absen masuk</button><button class="btn sec" data-tutup type="button">Batal</button>`);
+  setTimeout(() => $('alasan').focus(), 50);
+  $('ya').onclick = () => {
+    const a = $('alasan').value.trim();
+    if (a.length < 3) { $('lm').textContent = 'Tulis alasan singkat.'; return; }
+    absenMasuk(a, $('ya'));
+  };
+}
+function absenMasuk(alasan, btn) {
+  sibuk(btn, true);
+  ambilLokasi().then(lok => api('absenMasuk', DEV, ID, alasan, lok)).then(r => {
+    tutupLembar();
+    const extra = r.absen && r.absen.length ? ` · tidak ikut ${r.absen.join(', ')}` : '';
+    toast(`${r.status === 'Hadir' ? 'Absen masuk tercatat' : 'Tercatat terlambat'} pukul ${r.jam}${extra}.`);
+    return muat();
+  }).catch(e => {
+    sibuk(btn, false);
+    const k = kode(e);
+    if (k.kode === 'PERLU_ALASAN') return formAlasan(/terlambat/.test(k.teks) ? 'telat' : 'kegiatan');
+    if ($('lm')) $('lm').textContent = k.teks; else toast(k.teks, 6000);
+  });
+}
+
+/* ---------- Lapor: sakit / izin / akan terlambat / cuti ---------- */
+function formLapor(jenis, cutiSaja) {
+  const now = hm(jamServer());
+  const bisaHariIni = now <= A.batasLapor && !(INFO.status && INFO.status.datang);
+  const pilihan = cutiSaja ? ['Cuti'] : ['Sakit', 'Izin', 'Telat', 'Cuti'];
+  const nama = { Sakit: 'Sakit', Izin: 'Izin', Telat: 'Akan terlambat', Cuti: 'Cuti' };
+  const s = INFO.status && INFO.status.status === 'Sakit' ? INFO.status : null;
+  const minCuti = bisaHariIni ? INFO.today : tambahHari(INFO.today, 1);
+  bukaLembar(`<h2>${cutiSaja ? 'Ajukan cuti' : 'Lapor hari ini'}</h2>
+    ${cutiSaja ? '' : `<div class="seg" id="seg">${pilihan.map(p => `<button type="button" data-j="${p}" aria-pressed="${p === jenis}">${nama[p]}</button>`).join('')}</div>`}
+    <div id="fSakit" hidden>
+      <label class="field">Jenis sakit<select id="penyakit"><option value="">Pilih…</option>${CFG.penyakit.map(p => `<option${s && s.penyakit === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
+      <label class="field" id="fLain" hidden style="margin-top:10px">Sebutkan<input id="lain" maxlength="40" placeholder="Mis. sakit gigi"></label>
+      <label class="field" style="margin-top:10px">Kondisi (opsional)<select id="progres"><option value="">—</option>${CFG.progres.map(p => `<option${s && s.progres === p ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
+      <p class="hint" style="margin:10px 0 0">Jenis sakit tampil di papan kantor. Pilih yang umum saja; tidak perlu menulis diagnosis pribadi.</p>
+    </div>
+    <div id="fCuti" hidden>
+      <label class="field">Mulai cuti<input type="date" id="mulai" min="${minCuti}" max="${tambahHari(INFO.today, A.maksCuti)}" value="${minCuti}"></label>
+      <p class="hint" id="kembali" style="margin:8px 0 0"></p>
+    </div>
+    <label class="field" id="fKet">Keterangan<textarea id="ket" maxlength="120"></textarea></label>
+    <p class="hint" id="fInfo"></p>
+    <div class="msg" id="lm"></div>
+    <button class="btn main" id="ya" type="button">Kirim</button><button class="btn sec" data-tutup type="button">Batal</button>`);
+  const atur = j => {
+    jenis = j;
+    if ($('seg')) $('seg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.j === j));
+    $('fSakit').hidden = j !== 'Sakit'; $('fCuti').hidden = j !== 'Cuti';
+    const ph = { Sakit: 'Catatan (opsional, tidak tampil di papan)', Izin: 'Alasan izin (wajib)', Telat: 'Alasan & perkiraan jam tiba (wajib)', Cuti: 'Keterangan (opsional)' };
+    $('ket').placeholder = ph[j];
+    $('fInfo').innerHTML = j === 'Telat' ? 'Setelah tiba, tetap <b>absen masuk</b> agar jam datang tercatat.' :
+      j === 'Cuti' ? `Jatah cuti ${INFO.lamaCuti} hari kalender (termasuk Sabtu & Minggu).` : `Laporan hari ini paling lambat pukul ${titik(A.batasLapor)}.`;
+    if (j === 'Cuti') hitungKembali();
+  };
+  const hitungKembali = () => { const m = $('mulai').value; $('kembali').innerHTML = m ? `Kembali bekerja <b>${esc(tglPanjang(tambahHari(m, INFO.lamaCuti)))}</b>` : ''; };
+  if ($('seg')) $('seg').onclick = e => { const b = e.target.closest('[data-j]'); if (b) atur(b.dataset.j); };
+  $('penyakit').onchange = () => { $('fLain').hidden = $('penyakit').value !== 'Lainnya'; };
+  $('mulai').oninput = hitungKembali;
+  if (!bisaHariIni && !cutiSaja) { /* hanya cuti ke depan yang masih bisa */ }
+  atur(jenis);
+  $('ya').onclick = () => {
+    const d = { jenis, ket: $('ket').value.trim() };
+    if (jenis === 'Sakit') { d.penyakit = $('penyakit').value; d.lain = $('lain').value.trim(); d.progres = $('progres').value;
+      if (!d.penyakit) return void ($('lm').textContent = 'Pilih jenis sakit.');
+      if (d.penyakit === 'Lainnya' && d.lain.length < 3) return void ($('lm').textContent = 'Sebutkan jenis sakitnya.'); }
+    if ((jenis === 'Izin' || jenis === 'Telat') && d.ket.length < 3) return void ($('lm').textContent = 'Keterangan wajib diisi.');
+    if (jenis === 'Cuti') { d.mulai = $('mulai').value; if (!d.mulai) return void ($('lm').textContent = 'Pilih tanggal mulai cuti.'); }
+    kirim($('ya'), () => api('absenLapor', DEV, ID, d), r => r.pesan);
+  };
+}
+
+/* ---------- Lembur ---------- */
+function formLembur() {
+  bukaLembar(`<h2>Isi lembur</h2><p class="hint">Tulis pekerjaan yang dikerjakan saat lembur. Bisa diisi lebih dari sekali.</p>
+    <label class="field">Pekerjaan lembur<textarea id="ket" maxlength="200" placeholder="Mis. pengecoran pelat lantai 3, zona B"></textarea></label>
+    <div class="msg" id="lm"></div>
+    <button class="btn main" id="ya" type="button">Simpan lembur</button><button class="btn sec" data-tutup type="button">Batal</button>`);
+  setTimeout(() => $('ket').focus(), 50);
+  $('ya').onclick = () => {
+    const k = $('ket').value.trim();
+    if (k.length < 5) return void ($('lm').textContent = 'Tulis keterangan lembur (minimal 5 huruf).');
+    kirim($('ya'), () => api('absenLembur', DEV, ID, k), r => `Lembur tercatat pukul ${r.jam}.`);
+  };
+}
+
+/* ---------- Bantuan ---------- */
+function kirim(btn, panggil, sukses) {
+  sibuk(btn, true);
+  panggil().then(r => { tutupLembar(); toast(sukses(r)); return muat(); })
+    .catch(e => { sibuk(btn, false); const t = kode(e).teks; if ($('lm')) $('lm').textContent = t; else toast(t, 6000); });
+}
+function sibuk(btn, on) {
+  if (!btn) return;
+  if (on) { btn.dataset.teks = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>Mengirim…'; btn.disabled = true; }
+  else if (btn.dataset.teks) { btn.innerHTML = btn.dataset.teks; btn.disabled = false; }
+}
+function bukaLembar(html) { $('panel').innerHTML = html; $('sheet').hidden = false; }
+function tutupLembar() { $('sheet').hidden = true; $('panel').innerHTML = ''; }
+$('sheet').addEventListener('click', e => { if (e.target === $('sheet') || e.target.closest('[data-tutup]')) tutupLembar(); });
+const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+const isoKe = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+const keIso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const tambahHari = (iso, n) => keIso(new Date(isoKe(iso).getTime() + n * 864e5));
+const tglPanjang = iso => { if (!iso) return ''; const d = isoKe(iso); return `${HARI[d.getDay()]}, ${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`; };
+
+document.addEventListener('visibilitychange', () => { if (CFG && !document.hidden && ID && $('sheet').hidden) muat(); });
+setInterval(() => { if (CFG && !document.hidden && ID && $('sheet').hidden) muat(); }, 60000);
+function mulai() {
+  $('loading').hidden = false; $('loading').textContent = 'Memuat…';
+  api('absenKonfig').then(c => { CFG = c; A = c.aturan; $('proj').textContent = c.judul; muat(); })
+    .catch(e => { $('loading').innerHTML = `<p class="msg">${esc(pesan(e))}</p><button class="btn sec" type="button" onclick="mulai()">Coba lagi</button>`; });
+}
+mulai();
+</script>
+</body>
+</html>
