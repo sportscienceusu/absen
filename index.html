@@ -231,15 +231,16 @@ function tampil() {
   $('hpLain').textContent = d.hpLain ? `HP ini hari ini sudah dipakai absen atas nama ${d.hpLain}. Satu HP hanya untuk satu orang per hari.` : '';
 
   const now = hm(jamServer());
-  const masuk = s && (s.status === 'Hadir' || s.status === 'Terlambat') && s.datang;
+  const masuk = !!(s && s.hadir);                    // absen HP (ada jam datang) atau dicatat Hadir/Terlambat oleh admin
   const keg = d.kegiatan.length ? d.kegiatan.join(' / ') : '';
   let cls = '', lbl = 'Status hari ini', big = 'Belum absen', det = '';
   if (s) {
     const tidakIkut = s.absen && s.absen.length ? `Tidak ikut ${esc(s.absen.join(' · '))}` : '';
-    if (s.status === 'Hadir') { cls = 'hadir'; big = 'Hadir'; det = `Masuk <b>${titik(s.datang) || '—'}</b>${tidakIkut ? ' · ' + tidakIkut : ''}${s.ket ? `<br>Alasan: ${esc(s.ket)}` : ''}`; }
+    if (s.status === 'Hadir') { cls = 'hadir'; big = 'Hadir'; det = `${s.datang ? `Masuk <b>${titik(s.datang)}</b>` : 'Dicatat oleh admin'}${tidakIkut ? ' · ' + tidakIkut : ''}${s.ket ? `<br>Alasan: ${esc(s.ket)}` : ''}`; }
     else if (s.status === 'Terlambat') {
-      cls = 'telat'; big = s.datang ? 'Terlambat' : 'Akan terlambat';
-      det = s.datang ? `Masuk <b>${titik(s.datang)}</b> · ${esc(s.ket)}${tidakIkut ? '<br>' + tidakIkut : ''}` : `${esc(s.ket)}<br><b>Jangan lupa absen masuk begitu tiba.</b>`;
+      cls = 'telat'; big = s.hadir ? 'Terlambat' : 'Akan terlambat';
+      det = s.hadir ? `${s.datang ? `Masuk <b>${titik(s.datang)}</b>` : 'Dicatat oleh admin'} · ${esc(s.ket)}${tidakIkut ? '<br>' + tidakIkut : ''}`
+                    : `${esc(s.ket)}<br><b>Jangan lupa absen masuk begitu tiba.</b>`;
     }
     else if (s.status === 'Sakit') { cls = 'sakit'; big = 'Sakit'; det = [esc(s.penyakit), esc(s.progres), s.lanjut ? 'lanjutan — perbarui bila perlu' : ''].filter(Boolean).join(' · '); }
     else if (s.status === 'Izin') { cls = 'izin'; big = 'Izin'; det = esc(s.ket); }
