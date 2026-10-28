@@ -292,14 +292,19 @@ function tampil() {
 }
 
 /* ---------- Absen masuk ---------- */
-function ambilLokasi() {
+/* Lokasi HP. Absen masuk: wajib (bila diatur di server). Laporan & lembur: dicoba, tidak wajib, tetap dicatat. */
+function ambilLokasi(batasMs = 10000) {
   if (!A.lokasi) return Promise.resolve(null);
   return new Promise(res => {
     if (!navigator.geolocation) return res({ err: 'tidak didukung' });
     navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }),
-      e => res({ err: e.message || ('kode ' + e.code) }), { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+      e => res({ err: e.code === 1 ? 'izin ditolak' : e.code === 3 ? 'waktu habis' : (e.message || 'kode ' + e.code) }),
+      { enableHighAccuracy: true, timeout: batasMs, maximumAge: 30000 });
   });
 }
+const BANTU_LOKASI = `<div class="hint" style="background:#fff4e5;border-radius:10px;padding:10px 12px;margin-top:4px">
+  <b>Cara mengizinkan lokasi:</b> ketuk ikon di kiri alamat situs (⚙/gembok) → <b>Izin</b> / <b>Setelan situs</b> → <b>Lokasi</b> → <b>Izinkan</b>.
+  Pastikan juga <b>Lokasi/GPS HP menyala</b>, lalu tekan Absen masuk lagi. Di dalam gedung, coba dekat jendela atau di luar.</div>`;
 function mulaiMasuk() {
   const now = hm(jamServer()), s = INFO.status;
   const perlu = now > A.masuk && !(s && s.status === 'Terlambat' && s.ket);
@@ -324,7 +329,7 @@ function formAlasan(jenis) {
 }
 function absenMasuk(alasan, btn) {
   sibuk(btn, true);
-  ambilLokasi().then(lok => api('absenMasuk', DEV, ID, alasan, lok)).then(r => {
+  ambilLokasi(12000).then(lok => api('absenMasuk', DEV, ID, alasan, lok)).then(r => {
     tutupLembar();
     const extra = r.absen && r.absen.length ? ` · tidak ikut ${r.absen.join(', ')}` : '';
     toast(`${r.status === 'Hadir' ? 'Absen masuk tercatat' : 'Tercatat terlambat'} pukul ${r.jam}${extra}.`);
@@ -333,6 +338,12 @@ function absenMasuk(alasan, btn) {
     sibuk(btn, false);
     const k = kode(e);
     if (k.kode === 'PERLU_ALASAN') return formAlasan(/terlambat/.test(k.teks) ? 'telat' : 'kegiatan');
+    if (k.kode === 'LOKASI') {
+      bukaLembar(`<h2>Absen ditolak</h2><p style="margin:0">${esc(k.teks)}</p>${BANTU_LOKASI}
+        <button class="btn main" id="ulang" type="button">Coba lagi</button><button class="btn sec" data-tutup type="button">Tutup</button>`);
+      $('ulang').onclick = () => absenMasuk(alasan, $('ulang'));
+      return;
+    }
     if ($('lm')) $('lm').textContent = k.teks; else toast(k.teks, 6000);
   });
 }
@@ -384,7 +395,7 @@ function formLapor(jenis, cutiSaja) {
       if (d.penyakit === 'Lainnya' && d.lain.length < 3) return void ($('lm').textContent = 'Sebutkan jenis sakitnya.'); }
     if ((jenis === 'Izin' || jenis === 'Telat') && d.ket.length < 3) return void ($('lm').textContent = 'Keterangan wajib diisi.');
     if (jenis === 'Cuti') { d.mulai = $('mulai').value; if (!d.mulai) return void ($('lm').textContent = 'Pilih tanggal mulai cuti.'); }
-    kirim($('ya'), () => api('absenLapor', DEV, ID, d), r => r.pesan);
+    kirim($('ya'), () => ambilLokasi(6000).then(lok => api('absenLapor', DEV, ID, d, lok)), r => r.pesan);
   };
 }
 
@@ -398,7 +409,7 @@ function formLembur() {
   $('ya').onclick = () => {
     const k = $('ket').value.trim();
     if (k.length < 5) return void ($('lm').textContent = 'Tulis keterangan lembur (minimal 5 huruf).');
-    kirim($('ya'), () => api('absenLembur', DEV, ID, k), r => `Lembur tercatat pukul ${r.jam}.`);
+    kirim($('ya'), () => ambilLokasi(6000).then(lok => api('absenLembur', DEV, ID, k, lok)), r => `Lembur tercatat pukul ${r.jam}.`);
   };
 }
 
