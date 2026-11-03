@@ -115,7 +115,6 @@ h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; 
     <div class="me">
       <div class="ava" id="ava"></div>
       <div class="who"><b id="nama"></b><span id="jabatan"></span></div>
-      <button class="link" id="ganti" type="button">Ganti</button>
     </div>
     <div class="warn" id="hpLain" hidden></div>
     <div class="card state" id="state"></div>
@@ -191,21 +190,19 @@ $('names').addEventListener('click', e => {
   const b = e.target.closest('[data-id]'); if (!b) return;
   const s = DAFTAR.find(x => x.id === b.dataset.id);
   bukaLembar(`<h2>Konfirmasi</h2><p style="margin:0;font-size:17px">Saya <b>${esc(s.nama)}</b><br><span class="hint">${esc(s.jabatan)}</span></p>
+    <p class="warn" style="margin:0">Setelah ini HP terkunci untuk nama ini dan <b>tidak bisa diganti sendiri</b>. Pastikan nama sudah benar.</p>
     <p class="hint">Mengabsenkan orang lain dilarang dan tercatat di riwayat beserta perangkatnya.</p>
     <button class="btn main" id="ya" type="button">Ya, ini saya</button><button class="btn sec" data-tutup type="button">Bukan</button>`);
   $('ya').onclick = () => { ID = s.id; simpan('absen_id', ID); tutupLembar(); muat(); };
 });
-$('ganti').addEventListener('click', () => {
-  bukaLembar(`<h2>Ganti nama?</h2><p class="hint">Gunakan hanya bila HP ini memang milik orang lain atau tadi salah memilih nama. Satu HP tetap hanya bisa absen untuk satu orang per hari.</p>
-    <button class="btn dark" id="ya" type="button">Ganti nama</button><button class="btn sec" data-tutup type="button">Batal</button>`);
-  $('ya').onclick = () => { ID = null; simpan('absen_id', null); tutupLembar(); tampilPilih(); };
-});
+
 
 /* ---------- Muat & tampilkan keadaan ---------- */
 function muat() {
   if (!ID) return tampilPilih();
   return api('absenInfo', DEV, ID).then(d => {
     INFO = d;
+    A = Object.assign({}, CFG.aturan, d.aturan || {});    // aturan jam per orang (staf / mahasiswa magang)
     const [h, m] = d.jam.split(':').map(Number), now = new Date();
     SELISIH = (h * 60 + m) - (now.getHours() * 60 + now.getMinutes());
     if (Math.abs(SELISIH) > 720) SELISIH = 0;
@@ -213,6 +210,17 @@ function muat() {
   }).catch(e => {
     const k = kode(e);
     if (k.kode === 'NAMA_TIDAK_ADA') { ID = null; simpan('absen_id', null); toast(k.teks); return tampilPilih(); }
+    if (k.kode === 'HP_TERDAFTAR') {                        // HP ini milik nama lain: kembali ke nama pemiliknya
+      const [milik, teks] = [k.teks.split('|')[0], k.teks.split('|').slice(1).join('|')];
+      ID = milik; simpan('absen_id', ID); toast(teks, 7000); return muat();
+    }
+    if (k.kode === 'NAMA_TERDAFTAR') {
+      ID = null; simpan('absen_id', null);
+      $('loading').hidden = true; $('utama').hidden = true; $('pilih').hidden = true;
+      bukaLembar(`<h2>Nama sudah terdaftar</h2><p style="margin:0">${esc(k.teks)}</p><button class="btn sec" data-tutup type="button" id="okNama">Mengerti</button>`);
+      $('okNama').addEventListener('click', tampilPilih);
+      return;
+    }
     $('loading').hidden = false; $('loading').innerHTML = `<p class="msg">${esc(k.teks)}</p><button class="btn sec" type="button" onclick="muat()">Coba lagi</button>`;
   });
 }
@@ -225,7 +233,7 @@ function tampil() {
   if (fotoDiminta !== d.staf.id) {
     fotoDiminta = d.staf.id;
     $('ava').textContent = d.staf.nama.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
-    if (!window.PREVIEW) api('fotoSaya', d.staf.id).then(f => { if (f && f.url) $('ava').innerHTML = `<img alt="" src="${f.url}">`; }).catch(() => {});
+    if (!window.PREVIEW) api('fotoSaya', d.staf.id, DEV).then(f => { if (f && f.url) $('ava').innerHTML = `<img alt="" src="${f.url}">`; }).catch(() => {});
   }
   $('hpLain').hidden = !d.hpLain;
   $('hpLain').textContent = d.hpLain ? `HP ini hari ini sudah dipakai absen atas nama ${d.hpLain}. Satu HP hanya untuk satu orang per hari.` : '';
@@ -254,7 +262,7 @@ function tampil() {
     const fase = now <= A.masuk ? 0 : now <= A.batasHadir ? 1 : 2;
     det = `<div class="rules">
       <span class="t${fase === 0 ? ' now' : ''}">≤ ${titik(A.masuk)}</span><span class="${fase === 0 ? 'now' : ''}">Hadir${keg ? ', ikut ' + esc(keg) : ''}</span>
-      <span class="t${fase === 1 ? ' now' : ''}">s.d. ${titik(A.batasHadir)}</span><span class="${fase === 1 ? 'now' : ''}">Hadir, tidak ikut ${esc(keg || 'kegiatan pagi')} (isi alasan)</span>
+      <span class="t${fase === 1 ? ' now' : ''}">s.d. ${titik(A.batasHadir)}</span><span class="${fase === 1 ? 'now' : ''}">${keg ? `Hadir, tidak ikut ${esc(keg)} (isi alasan)` : 'Hadir (toleransi)'}</span>
       <span class="t${fase === 2 ? ' now' : ''}">&gt; ${titik(A.batasHadir)}</span><span class="${fase === 2 ? 'now' : ''}">Terlambat (isi alasan)</span></div>`;
   }
   $('state').className = 'card state ' + cls;
@@ -307,7 +315,7 @@ const BANTU_LOKASI = `<div class="hint" style="background:#fff4e5;border-radius:
   Pastikan juga <b>Lokasi/GPS HP menyala</b>, lalu tekan Absen masuk lagi. Di dalam gedung, coba dekat jendela atau di luar.</div>`;
 function mulaiMasuk() {
   const now = hm(jamServer()), s = INFO.status;
-  const perlu = now > A.masuk && !(s && s.status === 'Terlambat' && s.ket);
+  const perlu = (now > A.batasHadir || (now > A.masuk && INFO.kegiatan.length)) && !(s && s.status === 'Terlambat' && s.ket);
   if (perlu) return formAlasan(now > A.batasHadir ? 'telat' : 'kegiatan');
   absenMasuk('', $('bMasuk'));
 }
