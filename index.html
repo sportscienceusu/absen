@@ -92,6 +92,8 @@ h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; 
 @keyframes sp { to { transform: rotate(360deg); } }
 .loading { padding: 40px 0; text-align: center; color: var(--muted); }
 </style>
+<script>/* Penangkap galat: bila script utama gagal, pesan galat tampil di layar (bukan "Memuat…" selamanya) */
+window.onerror = function (m, s, l, c) { var e = document.getElementById('loading'); if (e) { e.hidden = false; e.innerHTML = '<p style="color:#c62f28;font-weight:600">Halaman gagal dimuat: ' + String(m).replace(/</g, '&lt;') + ' (baris ' + l + ':' + c + '). Kirim screenshot ini ke admin.</p>'; } };</script>
 </head>
 <body>
 <div class="wrap">
@@ -140,7 +142,7 @@ h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 18px; 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzow8y4qB557PUskQcZaB8OptFLsrvrQGeMDvbVuFIw5LgBQPLONyUvfXTU6lnWIQ8Nsg/exec';
 let CFG = null, A = null;
 function api(fn, ...args) {
-  return fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args }), credentials: 'omit', redirect: 'follow' })
+  return fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ fn: fn, args: args, ua: navigator.userAgent }), credentials: 'omit', redirect: 'follow' })
     .catch(() => { throw new Error('Gagal terhubung ke server. Periksa sinyal internet, lalu coba lagi.'); })
     .then(r => r.json())
     .then(j => { if (!j.ok) throw new Error(j.error); return j.data; });
@@ -171,10 +173,37 @@ setInterval(tick, 1000); tick();
 
 function toast(t, ms = 4200) { const el = $('toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, ms); }
 
+/* ---------- Browser di dalam aplikasi (WhatsApp, Google, Instagram, pemindai QR, dll.) ----------
+   Penyimpanannya terpisah dari Chrome/Safari (HP dianggap baru → nama ditolak) dan sering tanpa izin lokasi.
+   Sebelum memilih nama, staf diminta pindah ke Chrome/Safari. */
+const UA = navigator.userAgent || '';
+const IOS = /iPhone|iPad|iPod/.test(UA);
+// Catatan: hindari dua garis miring berurutan di dalam teks/regex. Apps Script menganggapnya komentar
+// dan memotong sisa baris (halaman jadi gagal dimuat).
+const DALAM_APP = /GSA\/|; wv\)|WhatsApp|FBAN|FBAV|FB_IAB|Instagram|\bLine\/|Telegram|TikTok|musical_ly/i.test(UA) || (IOS && !/Safari\/\d/.test(UA));
+let TETAP_DI_SINI = false;
+function peringatanAplikasi() {
+  const url = location.href.split('#')[0];
+  const chrome = `intent:\/\/${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end`;
+  let box = $('appWarn');
+  if (!box) { box = document.createElement('div'); box.id = 'appWarn'; box.style.cssText = 'display:flex;flex-direction:column;gap:10px'; $('names').before(box); }
+  $('names').innerHTML = ''; box.hidden = false;
+  box.innerHTML = `<div class="warn" style="display:flex;flex-direction:column;gap:10px;font-weight:600">
+      <span>Halaman ini terbuka <b>di dalam aplikasi</b> (mis. WhatsApp, Google, atau pemindai QR). Di sini nama Anda bisa ditolak dan lokasi sering tidak terbaca.</span>
+      <span style="font-weight:400">${IOS ? 'Ketuk ikon <b>⋯</b> atau <b>kompas</b> di pojok layar → <b>Buka di Safari</b>. Atau salin link lalu tempel di Safari.'
+        : 'Ketuk tombol di bawah untuk membuka di <b>Chrome</b>. Lain kali, pindai QR poster langsung dengan <b>aplikasi Kamera</b>.'}</span></div>
+    ${IOS ? '' : `<a class="btn main" href="${chrome}" style="text-decoration:none;display:flex;align-items:center;justify-content:center">Buka di Chrome</a>`}
+    <button class="btn sec" type="button" id="salinLink">Salin link</button>
+    <button class="link" type="button" id="tetap" style="align-self:center">Tetap lanjutkan di sini (tidak disarankan)</button>`;
+  $('salinLink').onclick = () => { try { navigator.clipboard.writeText(url).then(() => toast('Link disalin. Tempel di ' + (IOS ? 'Safari' : 'Chrome') + '.'), () => prompt('Salin link ini:', url)); } catch (e) { prompt('Salin link ini:', url); } };
+  $('tetap').onclick = () => { TETAP_DI_SINI = true; box.hidden = true; $('cari').hidden = false; tampilPilih(); };
+}
+
 /* ---------- Pilih nama ---------- */
 let DAFTAR = [];
 function tampilPilih() {
   $('loading').hidden = true; $('utama').hidden = true; $('pilih').hidden = false;
+  if (DALAM_APP && !TETAP_DI_SINI) { $('cari').hidden = true; return peringatanAplikasi(); }
   if (DAFTAR.length) return isiNama();
   $('names').innerHTML = '<p class="hint">Memuat daftar…</p>';
   api('absenDaftar').then(d => { DAFTAR = d; isiNama(); }).catch(e => { $('names').innerHTML = `<p class="msg">${esc(pesan(e))}</p>`; });
@@ -274,17 +303,21 @@ function tampil() {
   if (!masuk) h += `<button class="btn main" id="bMasuk" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Absen masuk</button>`;
   if (bisaLapor) h += `<button class="btn sec" id="bLapor" type="button">Tidak bisa masuk / akan terlambat</button>`;
   else if (!masuk) h += `<p class="note">Batas lapor sakit, izin, atau terlambat untuk hari ini pukul ${titik(A.batasLapor)} sudah lewat. Hubungi admin.</p>`;
+  const pl = d.pulang && d.pulang.status !== 'Tidak absen pulang' ? d.pulang : null;
+  if (masuk && !pl) h += `<button class="btn main" id="bPulang" type="button">Absen pulang</button>`;
+  if (pl) h += `<p class="note" style="text-align:center"><b>${esc(pl.status)} ${esc(titik(pl.jam))}</b>${pl.alasan ? ' — ' + esc(pl.alasan) : ''}</p>`;
   if (masuk) h += `<button class="btn dark" id="bLembur" type="button">Isi lembur</button>`;
   h += `<button class="link" id="bCuti" type="button" style="align-self:center">Ajukan cuti untuk tanggal lain</button>`;
   $('aksi').innerHTML = h;
   if ($('bMasuk')) $('bMasuk').onclick = mulaiMasuk;
   if ($('bLapor')) $('bLapor').onclick = () => formLapor(s && s.status === 'Sakit' ? 'Sakit' : 'Izin');
   if ($('bLembur')) $('bLembur').onclick = formLembur;
+  if ($('bPulang')) $('bPulang').onclick = formPulang;
   $('bCuti').onclick = () => formLapor('Cuti', true);
 
   // Lembur
   $('lemburBox').hidden = !d.lembur.length;
-  $('lemburList').innerHTML = d.lembur.map(x => `<li><b>${esc(x.jam)}</b>${esc(x.ket)}</li>`).join('');
+  $('lemburList').innerHTML = d.lembur.map(x => `<li><b>${esc(x.mulai ? x.mulai + '–' + x.selesai : x.jam)}</b>${x.jenis ? esc(x.jenis) + ' · ' : ''}${esc(x.ket)}${x.durasi ? ` <span class="hint">(${String(x.durasi).replace('.', ',')} jam)</span>` : ''}</li>`).join('');
   // Cuti terjadwal
   const tj = d.terjadwal;
   $('cutiBox').hidden = !tj;
@@ -310,7 +343,11 @@ function ambilLokasi(batasMs = 10000) {
       { enableHighAccuracy: true, timeout: batasMs, maximumAge: 30000 });
   });
 }
-const BANTU_LOKASI = `<div class="hint" style="background:#fff4e5;border-radius:10px;padding:10px 12px;margin-top:4px">
+const BANTU_LOKASI = /iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class="hint" style="background:#fff4e5;border-radius:10px;padding:10px 12px;margin-top:4px">
+  <b>Cara mengizinkan lokasi di iPhone:</b><br>1. Pengaturan → Privasi &amp; Keamanan → <b>Layanan Lokasi</b> → Aktif.<br>
+  2. Di daftar yang sama: <b>Situs Web Safari</b> (atau <b>Chrome</b>) → <b>Saat Menggunakan App</b>, nyalakan <b>Lokasi Tepat</b>.<br>
+  3. Di Safari, ketuk <b>aA</b> di kolom alamat → Pengaturan Situs Web → <b>Lokasi → Izinkan</b>.<br>Lalu tekan Absen masuk lagi. Di dalam gedung, coba dekat jendela atau di luar.</div>`
+  : `<div class="hint" style="background:#fff4e5;border-radius:10px;padding:10px 12px;margin-top:4px">
   <b>Cara mengizinkan lokasi:</b> ketuk ikon di kiri alamat situs (⚙/gembok) → <b>Izin</b> / <b>Setelan situs</b> → <b>Lokasi</b> → <b>Izinkan</b>.
   Pastikan juga <b>Lokasi/GPS HP menyala</b>, lalu tekan Absen masuk lagi. Di dalam gedung, coba dekat jendela atau di luar.</div>`;
 function mulaiMasuk() {
@@ -346,6 +383,10 @@ function absenMasuk(alasan, btn) {
     sibuk(btn, false);
     const k = kode(e);
     if (k.kode === 'PERLU_ALASAN') return formAlasan(/terlambat/.test(k.teks) ? 'telat' : 'kegiatan');
+    if (k.kode === 'LEMBUR_TIDAK_ADA') {
+      bukaLembar(`<h2>Hubungi admin</h2><p style="margin:0">${esc(k.teks)}</p><button class="btn sec" data-tutup type="button">Tutup</button>`);
+      return;
+    }
     if (k.kode === 'LOKASI') {
       bukaLembar(`<h2>Absen ditolak</h2><p style="margin:0">${esc(k.teks)}</p>${BANTU_LOKASI}
         <button class="btn main" id="ulang" type="button">Coba lagi</button><button class="btn sec" data-tutup type="button">Tutup</button>`);
@@ -408,16 +449,66 @@ function formLapor(jenis, cutiSaja) {
 }
 
 /* ---------- Lembur ---------- */
+/* ---------- Absen pulang (wajib di lokasi proyek; sebelum jam pulang = pulang cepat + alasan) ---------- */
+function formPulang() {
+  const now = hm(jamServer()), jamPulang = A.pulang || '17:00', cepat = now < jamPulang;
+  bukaLembar(`<h2>Absen pulang</h2>
+    <p class="hint">${cepat ? `Belum pukul ${titik(jamPulang)}: tercatat <b>Pulang cepat</b>, alasan wajib.` : 'Pastikan Anda masih di lokasi proyek.'} Lokasi HP diperlukan.</p>
+    ${cepat ? '<label class="field">Alasan pulang cepat<textarea id="alasan" maxlength="150" placeholder="Mis. izin keperluan keluarga, sudah disetujui atasan"></textarea></label>' : ''}
+    <div class="msg" id="lm"></div>
+    <button class="btn main" id="ya" type="button">Absen pulang sekarang</button><button class="btn sec" data-tutup type="button">Batal</button>`);
+  $('ya').onclick = () => {
+    const a = cepat ? $('alasan').value.trim() : '';
+    if (cepat && a.length < 5) { $('lm').textContent = 'Tulis alasan pulang cepat (minimal 5 huruf).'; return; }
+    kirimPulang(a, $('ya'));
+  };
+}
+function kirimPulang(alasan, btn) {
+  sibuk(btn, true);
+  ambilLokasi(12000).then(lok => api('absenPulang', DEV, ID, alasan, lok)).then(r => {
+    tutupLembar(); toast(`${r.status} tercatat pukul ${r.jam}. Hati-hati di jalan.`); return muat();
+  }).catch(e => {
+    sibuk(btn, false);
+    const k = kode(e);
+    if (k.kode === 'LOKASI') {
+      bukaLembar(`<h2>Absen pulang ditolak</h2><p style="margin:0">${esc(k.teks)}</p>${BANTU_LOKASI}
+        <button class="btn main" id="ulang" type="button">Coba lagi</button><button class="btn sec" data-tutup type="button">Tutup</button>`);
+      $('ulang').onclick = () => kirimPulang(alasan, $('ulang'));
+      return;
+    }
+    if (k.kode === 'PERLU_ALASAN') return formPulang();
+    if ($('lm')) $('lm').textContent = k.teks; else toast(k.teks, 6000);
+  });
+}
 function formLembur() {
-  bukaLembar(`<h2>Isi lembur</h2><p class="hint">Tulis pekerjaan yang dikerjakan saat lembur. Bisa diisi lebih dari sekali.</p>
+  const jenis = (CFG.jenisLembur || []);
+  const now = hm(jamServer());
+  bukaLembar(`<h2>Isi lembur</h2><p class="hint">Isi setiap kali lembur. Jam selesai boleh perkiraan.</p>
+    ${jenis.length ? `<label class="field">Jenis lembur<select id="jenis"><option value="">Pilih…</option>${jenis.map(j => `<option>${esc(j)}</option>`).join('')}</select></label>` : ''}
     <label class="field">Pekerjaan lembur<textarea id="ket" maxlength="200" placeholder="Mis. pengecoran pelat lantai 3, zona B"></textarea></label>
+    ${jenis.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <label class="field">Mulai<input type="time" id="mulai" value="${now}"></label>
+      <label class="field">Selesai<input type="time" id="selesai"></label></div>
+    <p class="hint" id="lama" style="margin:0"></p>` : ''}
     <div class="msg" id="lm"></div>
     <button class="btn main" id="ya" type="button">Simpan lembur</button><button class="btn sec" data-tutup type="button">Batal</button>`);
-  setTimeout(() => $('ket').focus(), 50);
+  const menit = v => /^\d{2}:\d{2}$/.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : null;
+  const lama = () => { const a = menit($('mulai').value), b = menit($('selesai').value); return a == null || b == null ? null : (b - a + 1440) % 1440; };
+  const tulisLama = () => { const l = lama(); $('lama').textContent = l ? `Lama lembur: ${Math.floor(l / 60)} jam${l % 60 ? ' ' + (l % 60) + ' menit' : ''}${menit($('selesai').value) < menit($('mulai').value) ? ' (lewat tengah malam)' : ''}` : ''; };
+  if (jenis.length) { $('mulai').oninput = tulisLama; $('selesai').oninput = tulisLama; }
   $('ya').onclick = () => {
     const k = $('ket').value.trim();
+    if (jenis.length && !$('jenis').value) return void ($('lm').textContent = 'Pilih jenis lembur.');
     if (k.length < 5) return void ($('lm').textContent = 'Tulis keterangan lembur (minimal 5 huruf).');
-    kirim($('ya'), () => ambilLokasi(6000).then(lok => api('absenLembur', DEV, ID, k, lok)), r => `Lembur tercatat pukul ${r.jam}.`);
+    let data = k;
+    if (jenis.length) {
+      if (!$('mulai').value || !$('selesai').value) return void ($('lm').textContent = 'Isi jam mulai dan jam selesai.');
+      const l = lama();
+      if (!l) return void ($('lm').textContent = 'Jam selesai harus berbeda dari jam mulai.');
+      if (l > 12 * 60) return void ($('lm').textContent = 'Lebih dari 12 jam. Periksa jam mulai dan selesai.');
+      data = { jenis: $('jenis').value, ket: k, mulai: $('mulai').value, selesai: $('selesai').value };
+    }
+    kirim($('ya'), () => ambilLokasi(6000).then(lok => api('absenLembur', DEV, ID, data, lok)), r => `Lembur tercatat${r.durasi ? ' (' + String(r.durasi).replace('.', ',') + ' jam)' : ''}.`);
   };
 }
 
