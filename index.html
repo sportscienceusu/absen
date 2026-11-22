@@ -463,10 +463,48 @@ function formPulang() {
     kirimPulang(a, $('ya'));
   };
 }
+/* ---------- Pesan setelah absen pulang: hati-hati di jalan + waktu istirahat + pengingat besok ---------- */
+function lamaTeks(m) {
+  const h = Math.floor(m / 60), j = h % 24, d = Math.floor(h / 24), n = m % 60;
+  return [d ? d + ' hari' : '', j ? j + ' jam' : '', n && !d ? n + ' menit' : ''].filter(Boolean).join(' ') || '0 menit';
+}
+function pesanPulang(r) {
+  const b = r.besok, depan = esc(String(r.nama || '').split(' ')[0]);
+  const salam = r.status === 'Pulang cepat' ? 'Semoga urusannya lancar.' : 'Terima kasih atas kerja kerasnya hari ini.';
+  let isi = `<h2>Hati-hati di jalan, ${depan}!</h2>
+    <p style="margin:0 0 12px">${esc(r.status)} tercatat pukul <b>${esc(r.jam)}</b>. ${salam}</p>`;
+  if (!b) { bukaLembar(isi + `<button class="btn main" data-tutup type="button">Oke</button>`); return; }
+  if (b.cuti) {
+    isi += `<p style="margin:0 0 12px">Cuti Anda mulai <b>${esc(b.tanggal)}</b>. Selamat beristirahat bersama keluarga.</p>`;
+  } else {
+    const kapan = b.libur ? 'hari kerja berikutnya' : 'besok';
+    const keg = b.kegiatan.length ? b.kegiatan.join(' / ') : '';
+    let aturan;
+    if (keg) aturan = `Datang paling lambat <b>${titik(b.masuk)}</b> untuk ikut ${esc(keg)}. Lewat ${titik(b.batasHadir)} tercatat <b>Terlambat</b>.`;
+    else if (b.magang) aturan = `Datang paling lambat <b>${titik(b.masuk)}</b> (toleransi sampai ${titik(b.batasHadir)}). Lewat itu tercatat <b>Terlambat</b>.`;
+    else aturan = `Datang paling lambat <b>${titik(b.batasHadir)}</b>. Lewat itu tercatat <b>Terlambat</b>.`;
+    isi += `${b.libur ? `<p style="margin:0 0 12px">Besok libur. Hari kerja berikutnya <b>${esc(b.tanggal)}</b>.</p>` : ''}
+      <div style="background:#fff4e5;border-radius:14px;padding:14px 16px;margin:0 0 12px">
+        <div class="hint" style="margin:0">Waktu istirahat Anda</div>
+        <div style="font-family:var(--display);font-size:34px;font-weight:600;color:var(--accent);line-height:1.15">${lamaTeks(b.menit)}</div>
+        <div class="hint" style="margin:0">sampai jam masuk ${kapan}${b.libur ? '' : ', ' + esc(b.tanggal)}, pukul ${titik(b.masuk)}</div>
+      </div>
+      <p style="margin:0 0 8px">Absen dibuka pukul ${titik(b.buka)}. ${aturan}</p>`;
+    if (b.menit < 480) {
+      isi += b.lembur
+        ? `<p class="hint" style="margin:0 0 8px">Lembur hari ini sudah tercatat. Kalau besok terlambat karena lembur, tulis alasannya saat absen masuk.</p>`
+        : `<p class="msg" style="margin:0 0 8px">Pulang larut? Kalau tadi lembur, isi lembur sekarang. Tanpa catatan lembur, alasan terlambat karena lembur besok akan ditolak.</p>
+           <button class="btn dark" id="pLembur" type="button">Isi lembur sekarang</button>`;
+    }
+    isi += `<p style="margin:0 0 12px"><b>Istirahat yang cukup, jangan lupa absen masuk ${b.libur ? 'hari ' + esc(b.tanggal.split(',')[0]) : 'besok'} pagi, dan jangan sampai terlambat.</b></p>`;
+  }
+  bukaLembar(isi + `<button class="btn main" data-tutup type="button">Siap, sampai ${b.cuti ? 'jumpa lagi' : b.libur ? 'jumpa' : 'besok'}!</button>`);
+  if ($('pLembur')) $('pLembur').onclick = formLembur;
+}
 function kirimPulang(alasan, btn) {
   sibuk(btn, true);
   ambilLokasi(12000).then(lok => api('absenPulang', DEV, ID, alasan, lok)).then(r => {
-    tutupLembar(); toast(`${r.status} tercatat pukul ${r.jam}. Hati-hati di jalan.`); return muat();
+    pesanPulang(r); return muat();
   }).catch(e => {
     sibuk(btn, false);
     const k = kode(e);
