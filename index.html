@@ -320,7 +320,8 @@ function tampil() {
 
   // Lembur
   $('lemburBox').hidden = !d.lembur.length;
-  $('lemburList').innerHTML = d.lembur.map(x => `<li><b>${esc(x.mulai ? x.mulai + '–' + x.selesai : x.jam)}</b>${x.jenis ? esc(x.jenis) + ' · ' : ''}${esc(x.ket)}${x.durasi ? ` <span class="hint">(${String(x.durasi).replace('.', ',')} jam)</span>` : ''}</li>`).join('');
+  $('lemburList').innerHTML = d.lembur.map((x, i) => `<li><b>${esc(x.mulai ? x.mulai + '–' + x.selesai : x.jam)}</b>${x.jenis ? esc(x.jenis) + ' · ' : ''}${esc(x.ket)}${x.durasi ? ` <span class="hint">(${String(x.durasi).replace('.', ',')} jam)</span>` : ''}${chipSetuju(x)}${x.ajuan ? `<div><button class="btn sec" style="min-height:40px;font-size:14px;margin:6px 0 0" data-ajuan="${i}" type="button">Kirim ulang ke atasan</button></div>` : ''}</li>`).join('');
+  $('lemburList').querySelectorAll('[data-ajuan]').forEach(b => { b.onclick = () => lembarAjuan(d.lembur[+b.dataset.ajuan].ajuan, 'Kirim ulang ke atasan'); });
   // Cuti terjadwal
   const tj = d.terjadwal;
   $('cutiBox').hidden = !tj;
@@ -355,6 +356,22 @@ const BANTU_LOKASI = /iPhone|iPad|iPod/.test(navigator.userAgent) ? `<div class=
   Pastikan juga <b>Lokasi/GPS HP menyala</b>, lalu tekan Absen masuk lagi. Di dalam gedung, coba dekat jendela atau di luar.</div>`;
 /* ---------- Lupa absen pulang: wajib isi jam pulang dulu sebelum absen masuk ---------- */
 /* ---------- Absen pulang setelah 00.00 (lembur dengan estimasi lewat tengah malam) ---------- */
+/* ---------- Persetujuan lembur: kirim ke atasan lewat WhatsApp ---------- */
+function urlWa(a) { return 'https:\/\/wa.me\/' + (a.wa || '') + '?text=' + encodeURIComponent(a.teks); }
+function chipSetuju(x) {
+  if (!x.setuju || /^Sebelum/.test(x.setuju)) return '';
+  const w = x.setuju === 'Disetujui' ? '#2e9a5b' : x.setuju === 'Ditolak' ? '#c62f28' : '#b26a00';
+  return ` <span class="chip" style="background:${w}1a;color:${w}">${esc(x.setuju)}${x.atasan && x.setuju !== 'Menunggu' ? ' · ' + esc(x.atasan) : ''}</span>${x.catatanAtasan ? `<div class="hint" style="margin:2px 0 0">Catatan atasan: ${esc(x.catatanAtasan)}</div>` : ''}`;
+}
+function lembarAjuan(a, judul) {
+  if (!a) return;
+  bukaLembar(`<h2>${esc(judul || 'Minta persetujuan atasan')}</h2>
+    <p style="margin:0 0 10px">${a.atasan ? `Lembur Anda perlu disetujui <b>${esc(a.atasan)}</b>. Tekan tombol di bawah, WhatsApp akan terbuka dengan pesan yang sudah terisi. Tinggal tekan kirim.` : 'Atasan Anda belum diatur di sistem. Pilih atasan Anda sendiri di WhatsApp, lalu kirim pesannya. Beri tahu admin supaya atasan Anda didaftarkan.'}</p>
+    <p class="hint" style="margin:0 0 12px">Lembur baru dihitung setelah <b>disetujui</b> atasan. Statusnya terlihat di halaman ini.</p>
+    <button class="btn main" id="bWa" type="button">Kirim ke ${a.atasan ? esc(a.atasan.split(' ')[0]) : 'atasan'} lewat WhatsApp</button>
+    <button class="btn sec" data-tutup type="button">Nanti saja</button>`);
+  $('bWa').onclick = () => { window.open(urlWa(a), '_blank'); tutupLembar(); toast('Jangan lupa tekan kirim di WhatsApp.'); };
+}
 function formPulangMalam() {
   const m = INFO.pulangMalam; if (!m) return;
   bukaLembar(`<h2>Absen pulang lembur</h2>
@@ -369,7 +386,7 @@ function formPulangTertunda() {
   const batas = A.pulang || '17:00';
   bukaLembar(`<h2>Anda belum absen pulang</h2>
     <p style="margin:0 0 8px">Pada <b>${esc(t.tanggal)}</b> Anda tidak absen pulang. Isi jam pulang hari itu dulu, baru bisa absen masuk.</p>
-    <p class="hint" style="margin:0 0 10px">Tercatat sebagai <b>diisi menyusul</b>.${t.lembur ? ' Lembur hari itu <b>tidak diakui</b> karena tidak ada absen pulang.' : ''}</p>
+    <p class="hint" style="margin:0 0 10px">Tercatat sebagai <b>diisi menyusul</b>.${!t.lembur ? '' : t.lembur.indexOf('Diakui') === 0 ? ' Lembur hari itu ' + esc(t.lembur.replace(/^Diakui · [^,]*, /, '')) + '.' : t.lembur.indexOf('Tidak') === 0 ? ' Lembur hari itu <b>tidak diakui</b> karena tidak ada absen pulang.' : ''}</p>
     <label class="field">Jam pulang<input type="time" id="jp"></label>
     <label class="field" id="fAl" hidden>Alasan pulang sebelum ${titik(batas)}<textarea id="al" maxlength="150"></textarea></label>
     <div class="msg" id="lm"></div>
@@ -399,15 +416,34 @@ function formAlasan(jenis) {
   const judul = jenis === 'telat' ? 'Alasan terlambat' : `Alasan tidak ikut ${esc(keg)}`;
   const info = jenis === 'telat' ? `Sudah lewat ${titik(A.batasHadir)}: tercatat <b>Terlambat</b>${INFO.kegiatan.length ? ` dan tidak ikut ${esc(keg)}` : ''}.`
     : `Sudah lewat ${titik(A.masuk)}: tercatat <b>Hadir</b>, tetapi tidak ikut ${esc(keg)}.`;
+  const daftar = ((CFG && CFG.alasan) || ['Macet', 'Hujan', 'Sakit', 'Urusan keluarga', 'Lembur kemarin', 'Ikut tapi telat absen', 'Malas'])
+    .filter(x => x !== 'Ikut tapi telat absen' || INFO.kegiatan.length).concat(['Lainnya']);
   bukaLembar(`<h2>${judul}</h2><p class="hint">${info}</p>
-    <label class="field">Alasan<textarea id="alasan" maxlength="120" placeholder="Mis. ban bocor, antar anak sekolah"></textarea></label>
-    <div class="msg" id="lm"></div>
+    <div class="field" style="margin:0 0 4px">Pilih alasan</div>
+    <div id="pilAlasan" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px">${daftar.map(x =>
+      `<button type="button" class="btn sec" data-alasan="${esc(x)}" style="min-height:48px;font-size:15px;margin:0;padding:6px 8px;${x === 'Lainnya' ? 'grid-column:1/-1' : ''}">${esc(x)}</button>`).join('')}</div>
+    <label class="field" id="fLain" hidden>Tulis alasan Anda<textarea id="alasan" maxlength="110" placeholder="Mis. bangun kesiangan, antar anak sekolah"></textarea></label>
+    <div class="msg" id="lm" style="margin:8px 0 14px"></div>
     <button class="btn main" id="ya" type="button">Absen masuk</button><button class="btn sec" data-tutup type="button">Batal</button>`);
-  setTimeout(() => $('alasan').focus(), 50);
+  let pilih = '';
+  $('pilAlasan').querySelectorAll('[data-alasan]').forEach(b => {
+    b.onclick = () => {
+      pilih = b.dataset.alasan; $('lm').textContent = '';
+      $('pilAlasan').querySelectorAll('[data-alasan]').forEach(x => {
+        const on = x === b; x.style.background = on ? 'var(--ink)' : ''; x.style.color = on ? '#fff' : ''; x.style.borderColor = on ? 'var(--ink)' : '';
+      });
+      $('fLain').hidden = pilih !== 'Lainnya';
+      if (pilih === 'Lainnya') setTimeout(() => $('alasan').focus(), 50);
+    };
+  });
+  const KOSONG = /^(i+y+a+h*|y+a+h*|o+k+[aeiouy]*h*|h+a+d+i+r+|s+i+a+p+|s+i+p+|b+a+i+k+|t+e+s+t*)+$/;
   $('ya').onclick = () => {
-    const a = $('alasan').value.trim();
-    if (a.length < 3) { $('lm').textContent = 'Tulis alasan singkat.'; return; }
-    absenMasuk(a, $('ya'));
+    if (!pilih) return void ($('lm').textContent = 'Pilih salah satu alasan.');
+    if (pilih !== 'Lainnya') return absenMasuk(pilih, $('ya'));
+    const a = $('alasan').value.trim(), huruf = a.toLowerCase().replace(/[^a-z]/g, '');
+    if (huruf.length < 3 || KOSONG.test(huruf)) return void ($('lm').textContent = 'Tulis alasan sebenarnya.');
+    if (huruf.length < 5) return void ($('lm').textContent = 'Tulis alasan lebih jelas (minimal 5 huruf).');
+    absenMasuk('Lainnya: ' + a, $('ya'));
   };
 }
 function absenMasuk(alasan, btn) {
@@ -589,7 +625,11 @@ function formLembur() {
       if (l > 12 * 60) return void ($('lm').textContent = 'Lebih dari 12 jam. Periksa jam mulai dan selesai.');
       data = { jenis: $('jenis').value, ket: k, mulai: $('mulai').value, selesai: $('selesai').value };
     }
-    kirim($('ya'), () => ambilLokasi(6000).then(lok => api('absenLembur', DEV, ID, data, lok)), r => `Lembur tercatat${r.durasi ? ' (' + String(r.durasi).replace('.', ',') + ' jam)' : ''}.`);
+    sibuk($('ya'), true);
+    ambilLokasi(6000).then(lok => api('absenLembur', DEV, ID, data, lok)).then(r => {
+      tutupLembar(); toast(`Lembur tercatat${r.durasi ? ' (' + String(r.durasi).replace('.', ',') + ' jam)' : ''}.${r.diLokasi === false ? ' Lokasi Anda tidak di proyek: jangan lupa absen pulang.' : ''}`);
+      return muat().then(() => lembarAjuan(r.ajuan, 'Lembur tercatat. Minta persetujuan atasan'));
+    }).catch(e => { sibuk($('ya'), false); $('lm').textContent = kode(e).teks; });
   };
 }
 
@@ -616,12 +656,62 @@ const tglPanjang = iso => { if (!iso) return ''; const d = isoKe(iso); return `$
 
 document.addEventListener('visibilitychange', () => { if (CFG && !document.hidden && ID && $('sheet').hidden) muat(); });
 setInterval(() => { if (CFG && !document.hidden && ID && $('sheet').hidden) muat(); }, 60000);
+/* ---------- Halaman persetujuan lembur untuk atasan (?lembur=kode) ---------- */
+const KODE_LEMBUR = (new URLSearchParams(location.search).get('lembur') || '').toLowerCase();
+function kartuLembur(x, utama) {
+  const jam = x.mulai ? `${esc(titik(x.mulai))}–${esc(titik(x.selesai))}${x.durasi !== '' ? ` (${String(x.durasi).replace('.', ',')} jam)` : ''}` : '-';
+  return `<div class="card" style="margin:0 0 12px">
+    <div style="font-weight:700;font-size:${utama ? 20 : 17}px">${esc(x.nama)}</div>
+    <div class="hint" style="margin:0 0 8px">${esc(x.jabatan)} · ${esc(x.tanggal)}</div>
+    ${x.jenis ? `<div><b>Jenis:</b> ${esc(x.jenis)}</div>` : ''}
+    <div><b>Pekerjaan:</b> ${esc(x.ket)}</div>
+    <div><b>Jam:</b> ${jam}</div>
+    <div class="hint" style="margin:6px 0 0">Diajukan ${esc(x.kirim)}${x.lokasi ? ' · ' + esc(x.lokasi) : ''}</div>
+    ${x.setuju && x.setuju !== 'Menunggu' ? `<p style="margin:8px 0 0"><b>${esc(x.setuju)}</b>${x.diputuskan ? ' · ' + esc(x.diputuskan) : ''}${x.catatan ? '<br>Catatan: ' + esc(x.catatan) : ''}</p>` : ''}
+    ${!utama && x.setuju === 'Menunggu' ? `<button class="btn sec" style="min-height:44px;margin:10px 0 0" type="button" data-putus="${esc(x.kode)}">Putuskan</button>` : ''}
+  </div>`;
+}
+function formPutuskan(x) {
+  bukaLembar(`<h2>Lembur ${esc(x.nama)}</h2>
+    <p style="margin:0 0 10px">${esc(x.jenis ? x.jenis + ' · ' : '')}${esc(x.ket)}<br><b>${esc(titik(x.mulai || ''))}${x.selesai ? '–' + esc(titik(x.selesai)) : ''}</b> · ${esc(x.tanggal)}</p>
+    <label class="field">Catatan (wajib bila ditolak)<textarea id="cat" maxlength="200"></textarea></label>
+    <div class="msg" id="lm"></div>
+    <button class="btn main" id="bSetuju" type="button" style="background:#2e9a5b">Setujui</button>
+    <button class="btn sec" id="bTolak" type="button">Tolak</button>`);
+  const putus = (kep, btn) => {
+    const c = $('cat').value.trim();
+    if (kep === 'Ditolak' && c.length < 3) return void ($('lm').textContent = 'Tulis alasan penolakan.');
+    sibuk(btn, true);
+    api('putuskanLembur', DEV, x.kode, kep, c).then(r => { tutupLembar(); toast(`Lembur ${r.nama} ${r.keputusan.toLowerCase()}.`); muatSetuju(); })
+      .catch(e => { sibuk(btn, false); $('lm').textContent = pesan(e); });
+  };
+  $('bSetuju').onclick = () => putus('Disetujui', $('bSetuju'));
+  $('bTolak').onclick = () => putus('Ditolak', $('bTolak'));
+}
+function muatSetuju() {
+  $('loading').hidden = false; $('loading').textContent = 'Memuat pengajuan lembur…';
+  $('proj').textContent = 'Persetujuan lembur'; $('jam').textContent = '';
+  return api('lemburAtasan', DEV, KODE_LEMBUR).then(d => {
+    $('loading').hidden = true;
+    let box = $('setuju');
+    if (!box) { box = document.createElement('section'); box.id = 'setuju'; $('loading').after(box); }
+    const x = d.item;
+    let h = `<h2 style="margin:0 0 12px">Pengajuan lembur</h2>` + kartuLembur(x, true);
+    if (!d.boleh) h += `<p class="msg" style="margin:0 0 12px">${esc(d.alasan)}</p>`;
+    else if (x.setuju === 'Menunggu') h += `<button class="btn main" id="bPutus" type="button" style="background:#2e9a5b">Setujui / Tolak</button>`;
+    if (d.boleh && d.menunggu.length) h += `<h2 style="margin:22px 0 10px">Pengajuan lain menunggu (${d.menunggu.length})</h2>` + d.menunggu.map(m => kartuLembur(m, false)).join('');
+    if (d.boleh) h += `<p class="hint" style="margin:16px 0 0">Masuk sebagai ${esc(d.atasan)}.</p>`;
+    box.innerHTML = h;
+    if ($('bPutus')) $('bPutus').onclick = () => formPutuskan(x);
+    box.querySelectorAll('[data-putus]').forEach(b => { b.onclick = () => formPutuskan(d.menunggu.filter(m => m.kode === b.dataset.putus)[0]); });
+  }).catch(e => { $('loading').innerHTML = `<p class="msg">${esc(pesan(e))}</p><button class="btn sec" type="button" onclick="muatSetuju()">Coba lagi</button>`; });
+}
 function mulai() {
   $('loading').hidden = false; $('loading').textContent = 'Memuat…';
   api('absenKonfig').then(c => { CFG = c; A = c.aturan; $('proj').textContent = c.judul; muat(); })
     .catch(e => { $('loading').innerHTML = `<p class="msg">${esc(pesan(e))}</p><button class="btn sec" type="button" onclick="mulai()">Coba lagi</button>`; });
 }
-mulai();
+if (KODE_LEMBUR) muatSetuju(); else mulai();
 </script>
 </body>
 </html>
