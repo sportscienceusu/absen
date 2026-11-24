@@ -422,7 +422,7 @@ function formAlasan(jenis) {
     <div class="field" style="margin:0 0 4px">Pilih alasan</div>
     <div id="pilAlasan" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px">${daftar.map(x =>
       `<button type="button" class="btn sec" data-alasan="${esc(x)}" style="min-height:48px;font-size:15px;margin:0;padding:6px 8px;${x === 'Lainnya' ? 'grid-column:1/-1' : ''}">${esc(x)}</button>`).join('')}</div>
-    <label class="field" id="fLain" hidden>Tulis alasan Anda<textarea id="alasan" maxlength="110" placeholder="Mis. bangun kesiangan, antar anak sekolah"></textarea></label>
+    <label class="field" id="fLain" hidden><span id="lLain">Tulis alasan Anda</span><textarea id="alasan" maxlength="110" placeholder="Mis. bangun kesiangan, antar anak sekolah"></textarea></label>
     <div class="msg" id="lm" style="margin:8px 0 14px"></div>
     <button class="btn main" id="ya" type="button">Absen masuk</button><button class="btn sec" data-tutup type="button">Batal</button>`);
   let pilih = '';
@@ -432,18 +432,21 @@ function formAlasan(jenis) {
       $('pilAlasan').querySelectorAll('[data-alasan]').forEach(x => {
         const on = x === b; x.style.background = on ? 'var(--ink)' : ''; x.style.color = on ? '#fff' : ''; x.style.borderColor = on ? 'var(--ink)' : '';
       });
-      $('fLain').hidden = pilih !== 'Lainnya';
-      if (pilih === 'Lainnya') setTimeout(() => $('alasan').focus(), 50);
+      const isi = pilih === 'Lainnya' || pilih === 'Urusan keluarga';
+      $('fLain').hidden = !isi;
+      $('lLain').textContent = pilih === 'Urusan keluarga' ? 'Urusan keluarga apa?' : 'Tulis alasan Anda';
+      $('alasan').placeholder = pilih === 'Urusan keluarga' ? 'Mis. antar orang tua berobat, anak sakit' : 'Mis. bangun kesiangan, ban bocor';
+      if (isi) setTimeout(() => $('alasan').focus(), 50);
     };
   });
-  const KOSONG = /^(i+y+a+h*|y+a+h*|o+k+[aeiouy]*h*|h+a+d+i+r+|s+i+a+p+|s+i+p+|b+a+i+k+|t+e+s+t*)+$/;
+  const KOSONG = /^(i+y+a+h*|y+a+h*|o+k+[aeiouy]*h*|h+a+d+i+r+|s+i+a+p+|s+i+p+|b+a+i+k+|k+e+p+o+|t+e+s+t*)+$/;
   $('ya').onclick = () => {
     if (!pilih) return void ($('lm').textContent = 'Pilih salah satu alasan.');
-    if (pilih !== 'Lainnya') return absenMasuk(pilih, $('ya'));
+    if (pilih !== 'Lainnya' && pilih !== 'Urusan keluarga') return absenMasuk(pilih, $('ya'));
     const a = $('alasan').value.trim(), huruf = a.toLowerCase().replace(/[^a-z]/g, '');
-    if (huruf.length < 3 || KOSONG.test(huruf)) return void ($('lm').textContent = 'Tulis alasan sebenarnya.');
-    if (huruf.length < 5) return void ($('lm').textContent = 'Tulis alasan lebih jelas (minimal 5 huruf).');
-    absenMasuk('Lainnya: ' + a, $('ya'));
+    if (huruf.length < 3 || KOSONG.test(huruf)) return void ($('lm').textContent = pilih === 'Urusan keluarga' ? 'Tulis urusan keluarga apa.' : 'Tulis alasan sebenarnya.');
+    if (huruf.length < 5) return void ($('lm').textContent = pilih === 'Urusan keluarga' ? 'Tulis urusan keluarga apa.' : 'Tulis alasan lebih jelas (minimal 5 huruf).');
+    absenMasuk(pilih + ': ' + a, $('ya'));
   };
 }
 function absenMasuk(alasan, btn) {
