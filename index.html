@@ -425,7 +425,7 @@ function formAlasan(jenis) {
   const info = jenis === 'telat' ? `Sudah lewat ${titik(A.batasHadir)}: tercatat <b>Terlambat</b>${INFO.kegiatan.length ? ` dan tidak ikut ${esc(keg)}` : ''}.`
     : `Sudah lewat ${titik(A.masuk)}: tercatat <b>Hadir</b>, tetapi tidak ikut ${esc(keg)}.`;
   const daftar = ((CFG && CFG.alasan) || ['Macet', 'Hujan', 'Sakit', 'Urusan keluarga', 'Lembur kemarin', 'Ikut tapi telat absen', 'Malas'])
-    .filter(x => x !== 'Ikut tapi telat absen' || INFO.kegiatan.length).concat(['Lainnya']);
+    .filter(x => x !== 'Ikut tapi telat absen' || (INFO.kegiatan.length && (!A.ikutTelatSampai || hm(jamServer()) <= A.ikutTelatSampai))).concat(['Lainnya']);
   bukaLembar(`<h2>${judul}</h2><p class="hint">${info}</p>
     <div class="field" style="margin:0 0 4px">Pilih alasan</div>
     <div id="pilAlasan" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 10px">${daftar.map(x =>
