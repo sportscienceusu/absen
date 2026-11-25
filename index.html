@@ -294,6 +294,7 @@ function tampil() {
       <span class="t${fase === 1 ? ' now' : ''}">s.d. ${titik(A.batasHadir)}</span><span class="${fase === 1 ? 'now' : ''}">${keg ? `Hadir, tidak ikut ${esc(keg)} (isi alasan)` : 'Hadir (toleransi)'}</span>
       <span class="t${fase === 2 ? ' now' : ''}">&gt; ${titik(A.batasHadir)}</span><span class="${fase === 2 ? 'now' : ''}">Terlambat (isi alasan)</span></div>`;
   }
+  if (d.istirahat && !masuk) det = `<div class="msg" style="margin:0 0 8px">Istirahat setelah lembur: absen masuk mulai pukul ${esc(titik(d.istirahat.boleh))}${d.istirahat.besok ? ' besok' : ''}.</div>` + det;
   if (d.pulangTertunda && !masuk) det = `<div class="msg" style="margin:0 0 8px">Anda belum absen pulang pada ${esc(d.pulangTertunda.tanggal)}. Isi jam pulangnya saat menekan Absen masuk.</div>` + det;
   $('state').className = 'card state ' + cls;
   $('state').innerHTML = `<span class="lbl">${lbl}</span><span class="big">${esc(big)}</span><div class="det">${det}</div>`;
@@ -376,7 +377,7 @@ function formPulangMalam() {
   const m = INFO.pulangMalam; if (!m) return;
   bukaLembar(`<h2>Absen pulang lembur</h2>
     <p style="margin:0 0 8px">Lembur Anda pada <b>${esc(m.tanggal)}</b> diperkirakan selesai pukul <b>${esc(titik(m.selesai))}</b>. Absen pulang ini dicatat untuk tanggal tersebut.</p>
-    <p class="hint">Bisa sampai pukul ${titik(A.buka || '05:30')}. Lokasi HP diperlukan, wajib di lokasi proyek.</p>
+    <p class="hint">Bisa sampai pukul ${titik(A.pulangMalam || A.buka || '05:30')}. Lokasi HP diperlukan, wajib di lokasi proyek.</p>
     <div class="msg" id="lm"></div>
     <button class="btn main" id="ya" type="button">Absen pulang sekarang</button><button class="btn sec" data-tutup type="button">Batal</button>`);
   $('ya').onclick = () => kirimPulang('', $('ya'));
@@ -404,8 +405,15 @@ function formPulangTertunda() {
     }).catch(e => { sibuk($('ya'), false); $('lm').textContent = kode(e).teks; });
   };
 }
+function pesanIstirahat(i) {
+  bukaLembar(`<h2>Istirahat dulu</h2>
+    <p style="margin:0 0 10px">Anda absen pulang pukul <b>${esc(i.pulang)}</b> setelah lembur. Setelah lembur, wajib istirahat minimal <b>${i.jam} jam</b>.</p>
+    <p style="margin:0 0 14px">Absen masuk bisa mulai pukul <b>${esc(titik(i.boleh))}</b>${i.besok ? ' besok' : ''}.</p>
+    <button class="btn main" data-tutup type="button">Oke</button>`);
+}
 function mulaiMasuk() {
   if (INFO.pulangTertunda) return formPulangTertunda();
+  if (INFO.istirahat) return pesanIstirahat(INFO.istirahat);
   const now = hm(jamServer()), s = INFO.status;
   const perlu = (now > A.batasHadir || (now > A.masuk && INFO.kegiatan.length)) && !(s && s.status === 'Terlambat' && s.ket);
   if (perlu) return formAlasan(now > A.batasHadir ? 'telat' : 'kegiatan');
@@ -461,6 +469,7 @@ function absenMasuk(alasan, btn) {
     const k = kode(e);
     if (k.kode === 'PERLU_ALASAN') return formAlasan(/terlambat/.test(k.teks) ? 'telat' : 'kegiatan');
     if (k.kode === 'PULANG_TERTUNDA') { tutupLembar(); return muat().then(formPulangTertunda); }
+    if (k.kode === 'ISTIRAHAT') { tutupLembar(); return muat().then(() => INFO.istirahat ? pesanIstirahat(INFO.istirahat) : toast(k.teks)); }
     if (k.kode === 'LEMBUR_TIDAK_ADA') {
       bukaLembar(`<h2>Hubungi admin</h2><p style="margin:0">${esc(k.teks)}</p><button class="btn sec" data-tutup type="button">Tutup</button>`);
       return;
@@ -565,9 +574,9 @@ function pesanPulang(r) {
       <div style="background:#fff4e5;border-radius:14px;padding:14px 16px;margin:0 0 12px">
         <div class="hint" style="margin:0">Waktu istirahat Anda</div>
         <div style="font-family:var(--display);font-size:34px;font-weight:600;color:var(--accent);line-height:1.15">${lamaTeks(b.menit)}</div>
-        <div class="hint" style="margin:0">sampai jam masuk ${kapan}${b.libur ? '' : ', ' + esc(b.tanggal)}, pukul ${titik(b.masuk)}</div>
+        <div class="hint" style="margin:0">${b.mulaiMasuk ? `minimal setelah lembur. Absen masuk bisa mulai pukul ${titik(b.mulaiMasuk)}` : `sampai jam masuk ${kapan}${b.libur ? '' : ', ' + esc(b.tanggal)}, pukul ${titik(b.masuk)}`}</div>
       </div>
-      <p style="margin:0 0 8px">Absen dibuka pukul ${titik(b.buka)}. ${aturan}</p>`;
+      <p style="margin:0 0 8px">${b.mulaiMasuk ? `Karena lembur, absen masuk paling cepat pukul <b>${titik(b.mulaiMasuk)}</b> (istirahat ${b.jeda} jam).` : `Absen dibuka pukul ${titik(b.buka)}. ${aturan}`}</p>`;
     if (b.lemburStatus && b.lemburStatus.indexOf('Tidak diakui') === 0) {
       isi += `<p class="msg" style="margin:0 0 8px">Lembur hari ini <b>tidak diakui</b>: ${esc(b.lemburStatus.replace(/^Tidak diakui · /, ''))}. Hubungi admin bila ada kekeliruan.</p>`;
     } else if (b.lemburStatus && b.lemburStatus !== 'Diakui') {
@@ -578,7 +587,8 @@ function pesanPulang(r) {
         : `<p class="msg" style="margin:0 0 8px">Pulang larut? Kalau tadi lembur, isi lembur sekarang. Tanpa catatan lembur, alasan terlambat karena lembur besok akan ditolak.</p>
            <button class="btn dark" id="pLembur" type="button">Isi lembur sekarang</button>`;
     }
-    isi += `<p style="margin:0 0 12px"><b>Istirahat yang cukup, jangan lupa absen masuk ${b.libur ? 'hari ' + esc(b.tanggal.split(',')[0]) + ' pagi' : b.hariIni ? 'nanti pagi' : 'besok pagi'}, dan jangan sampai terlambat.</b></p>`;
+    if (b.mulaiMasuk) isi += `<p style="margin:0 0 12px"><b>Istirahat yang cukup. Jangan lupa absen masuk mulai pukul ${titik(b.mulaiMasuk)}.</b></p>`;
+    else isi += `<p style="margin:0 0 12px"><b>Istirahat yang cukup, jangan lupa absen masuk ${b.libur ? 'hari ' + esc(b.tanggal.split(',')[0]) + ' pagi' : b.hariIni ? 'nanti pagi' : 'besok pagi'}, dan jangan sampai terlambat.</b></p>`;
   }
   bukaLembar(isi + `<button class="btn main" data-tutup type="button">Siap, sampai ${b.cuti ? 'jumpa lagi' : b.libur ? 'jumpa' : b.hariIni ? 'nanti pagi' : 'besok'}!</button>`);
   if ($('pLembur')) $('pLembur').onclick = formLembur;
@@ -614,7 +624,7 @@ function formLembur() {
     <button class="btn main" id="ya" type="button">Simpan lembur</button><button class="btn sec" data-tutup type="button">Batal</button>`);
   const menit = v => /^\d{2}:\d{2}$/.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : null;
   const lama = () => { const a = menit($('mulai').value), b = menit($('selesai').value); return a == null || b == null ? null : (b - a + 1440) % 1440; };
-  const tulisLama = () => { const l = lama(); $('lama').textContent = l ? `Lama lembur: ${Math.floor(l / 60)} jam${l % 60 ? ' ' + (l % 60) + ' menit' : ''}${menit($('selesai').value) < menit($('mulai').value) ? ' (lewat tengah malam — boleh absen pulang setelah 00.00 sampai ' + titik(A.buka || '05:30') + ')' : ''}` : ''; };
+  const tulisLama = () => { const l = lama(); $('lama').textContent = l ? `Lama lembur: ${Math.floor(l / 60)} jam${l % 60 ? ' ' + (l % 60) + ' menit' : ''}${menit($('selesai').value) < menit($('mulai').value) ? ' (lewat tengah malam — boleh absen pulang setelah 00.00 sampai ' + titik(A.pulangMalam || A.buka || '05:30') + ')' : ''}${A.setujuMaks && (menit($('selesai').value) < menit($('mulai').value) || l > A.setujuMaks * 60) ? ' · Perlu persetujuan atasan.' : ''}` : ''; };
   if (jenis.length) { $('mulai').oninput = tulisLama; $('selesai').oninput = tulisLama; }
   $('ya').onclick = () => {
     const k = $('ket').value.trim();
