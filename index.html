@@ -294,7 +294,7 @@ function tampil() {
       <span class="t${fase === 1 ? ' now' : ''}">s.d. ${titik(A.batasHadir)}</span><span class="${fase === 1 ? 'now' : ''}">${keg ? `Hadir, tidak ikut ${esc(keg)} (isi alasan)` : 'Hadir (toleransi)'}</span>
       <span class="t${fase === 2 ? ' now' : ''}">&gt; ${titik(A.batasHadir)}</span><span class="${fase === 2 ? 'now' : ''}">Terlambat (isi alasan)</span></div>`;
   }
-  if (d.istirahat && !masuk) det = `<div class="msg" style="margin:0 0 8px">Istirahat setelah lembur: absen masuk mulai pukul ${esc(titik(d.istirahat.boleh))}${d.istirahat.besok ? ' besok' : ''}.</div>` + det;
+  if (d.istirahat && !masuk) det = `<div class="msg" style="margin:0 0 8px">Setelah lembur: absen masuk mulai pukul ${esc(titik(d.istirahat.boleh))}${d.istirahat.besok ? ' besok' : ''}.</div>` + det;
   if (d.pulangTertunda && !masuk) det = `<div class="msg" style="margin:0 0 8px">Anda belum absen pulang pada ${esc(d.pulangTertunda.tanggal)}. Isi jam pulangnya saat menekan Absen masuk.</div>` + det;
   $('state').className = 'card state ' + cls;
   $('state').innerHTML = `<span class="lbl">${lbl}</span><span class="big">${esc(big)}</span><div class="det">${det}</div>`;
@@ -406,8 +406,8 @@ function formPulangTertunda() {
   };
 }
 function pesanIstirahat(i) {
-  bukaLembar(`<h2>Istirahat dulu</h2>
-    <p style="margin:0 0 10px">Anda absen pulang pukul <b>${esc(i.pulang)}</b> setelah lembur. Setelah lembur, wajib istirahat minimal <b>${i.jam} jam</b>.</p>
+  bukaLembar(`<h2>Belum bisa absen masuk</h2>
+    <p style="margin:0 0 10px">Anda absen pulang pukul <b>${esc(i.pulang)}</b> setelah lembur. Absen masuk berikutnya baru bisa <b>${i.jam} jam</b> setelah absen pulang.</p>
     <p style="margin:0 0 14px">Absen masuk bisa mulai pukul <b>${esc(titik(i.boleh))}</b>${i.besok ? ' besok' : ''}.</p>
     <button class="btn main" data-tutup type="button">Oke</button>`);
 }
@@ -574,9 +574,9 @@ function pesanPulang(r) {
       <div style="background:#fff4e5;border-radius:14px;padding:14px 16px;margin:0 0 12px">
         <div class="hint" style="margin:0">Waktu istirahat Anda</div>
         <div style="font-family:var(--display);font-size:34px;font-weight:600;color:var(--accent);line-height:1.15">${lamaTeks(b.menit)}</div>
-        <div class="hint" style="margin:0">${b.mulaiMasuk ? `minimal setelah lembur. Absen masuk bisa mulai pukul ${titik(b.mulaiMasuk)}` : `sampai jam masuk ${kapan}${b.libur ? '' : ', ' + esc(b.tanggal)}, pukul ${titik(b.masuk)}`}</div>
+        <div class="hint" style="margin:0">${b.mulaiMasuk ? `sampai absen masuk berikutnya bisa dilakukan, pukul ${titik(b.mulaiMasuk)}` : `sampai jam masuk ${kapan}${b.libur ? '' : ', ' + esc(b.tanggal)}, pukul ${titik(b.masuk)}`}</div>
       </div>
-      <p style="margin:0 0 8px">${b.mulaiMasuk ? `Karena lembur, absen masuk paling cepat pukul <b>${titik(b.mulaiMasuk)}</b> (istirahat ${b.jeda} jam).` : `Absen dibuka pukul ${titik(b.buka)}. ${aturan}`}</p>`;
+      <p style="margin:0 0 8px">${b.mulaiMasuk ? `Karena lembur, absen masuk berikutnya paling cepat pukul <b>${titik(b.mulaiMasuk)}</b> (${b.jeda} jam setelah absen pulang).` : `Absen dibuka pukul ${titik(b.buka)}. ${aturan}`}</p>`;
     if (b.lemburStatus && b.lemburStatus.indexOf('Tidak diakui') === 0) {
       isi += `<p class="msg" style="margin:0 0 8px">Lembur hari ini <b>tidak diakui</b>: ${esc(b.lemburStatus.replace(/^Tidak diakui · /, ''))}. Hubungi admin bila ada kekeliruan.</p>`;
     } else if (b.lemburStatus && b.lemburStatus !== 'Diakui') {
@@ -624,7 +624,7 @@ function formLembur() {
     <button class="btn main" id="ya" type="button">Simpan lembur</button><button class="btn sec" data-tutup type="button">Batal</button>`);
   const menit = v => /^\d{2}:\d{2}$/.test(v) ? Number(v.slice(0, 2)) * 60 + Number(v.slice(3)) : null;
   const lama = () => { const a = menit($('mulai').value), b = menit($('selesai').value); return a == null || b == null ? null : (b - a + 1440) % 1440; };
-  const tulisLama = () => { const l = lama(); $('lama').textContent = l ? `Lama lembur: ${Math.floor(l / 60)} jam${l % 60 ? ' ' + (l % 60) + ' menit' : ''}${menit($('selesai').value) < menit($('mulai').value) ? ' (lewat tengah malam — boleh absen pulang setelah 00.00 sampai ' + titik(A.pulangMalam || A.buka || '05:30') + ')' : ''}${A.setujuMaks && (menit($('selesai').value) < menit($('mulai').value) || l > A.setujuMaks * 60) ? ' · Perlu persetujuan atasan.' : ''}` : ''; };
+  const tulisLama = () => { const l = lama(); $('lama').textContent = l ? `Lama lembur: ${Math.floor(l / 60)} jam${l % 60 ? ' ' + (l % 60) + ' menit' : ''}${menit($('selesai').value) < menit($('mulai').value) ? ' (lewat tengah malam — boleh absen pulang setelah 00.00 sampai ' + titik(A.pulangMalam || A.buka || '05:30') + ')' : ''}${A.setujuMaks && (menit($('selesai').value) < menit($('mulai').value) || l > A.setujuMaks * 60) ? ' · Perlu persetujuan atasan.' : ''}${A.jedaLembur ? ' Setelah absen pulang, absen masuk berikutnya baru bisa ' + A.jedaLembur + ' jam kemudian.' : ''}` : ''; };
   if (jenis.length) { $('mulai').oninput = tulisLama; $('selesai').oninput = tulisLama; }
   $('ya').onclick = () => {
     const k = $('ket').value.trim();
