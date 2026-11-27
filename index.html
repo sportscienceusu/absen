@@ -227,6 +227,47 @@ $('names').addEventListener('click', e => {
 
 
 /* ---------- Muat & tampilkan keadaan ---------- */
+/* ---------- PIN pribadi ---------- */
+function formPinMasuk(id, teks) {
+  $('loading').hidden = true; $('utama').hidden = true; $('pilih').hidden = true;
+  bukaLembar(`<h2>Masukkan PIN</h2><p style="margin:0 0 10px">${esc(teks)}</p>
+    <label class="field">PIN Anda<input id="pinIn" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label>
+    <div class="msg" id="lm" style="margin:6px 0 12px"></div>
+    <button class="btn main" id="ya" type="button">Pakai nama ini di HP ini</button>
+    <button class="btn sec" id="bukan" type="button">Bukan saya / pilih nama lain</button>
+    <p class="hint" style="margin:10px 0 0">Lupa PIN? Minta admin reset HP Anda, lalu buat PIN baru.</p>`);
+  setTimeout(() => $('pinIn').focus(), 80);
+  $('bukan').onclick = () => { tutupLembar(); tampilPilih(); };
+  $('ya').onclick = () => {
+    const pin = $('pinIn').value.trim();
+    if (!/^[0-9]{4,6}$/.test(pin)) return void ($('lm').textContent = 'PIN 4–6 angka.');
+    sibuk($('ya'), true);
+    api('pindahHpPin', DEV, id, pin).then(() => {
+      ID = id; simpan('absen_id', ID); tutupLembar(); toast('Nama Anda sekarang terdaftar di HP ini.'); muat();
+    }).catch(e => { sibuk($('ya'), false); $('lm').textContent = kode(e).teks; });
+  };
+}
+let pinDitunda = false;
+function formBuatPin() {
+  if (pinDitunda || !INFO || !INFO.perluPin || !$('sheet').hidden) return;
+  bukaLembar(`<h2>Buat PIN Anda</h2>
+    <p style="margin:0 0 10px">Buat PIN 4–6 angka. Kalau suatu hari muncul <b>"nama sudah terdaftar"</b> (misalnya data browser terhapus atau ganti HP), cukup masukkan PIN ini, tidak perlu menunggu admin.</p>
+    <p class="hint" style="margin:0 0 10px">Jangan beri tahu PIN ke orang lain.</p>
+    <label class="field">PIN baru<input id="pin1" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label>
+    <label class="field">Ulangi PIN<input id="pin2" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off"></label>
+    <div class="msg" id="lm" style="margin:6px 0 12px"></div>
+    <button class="btn main" id="ya" type="button">Simpan PIN</button>
+    <button class="btn sec" id="nanti" type="button">Nanti</button>`);
+  $('nanti').onclick = () => { pinDitunda = true; tutupLembar(); };
+  $('ya').onclick = () => {
+    const a = $('pin1').value.trim(), b = $('pin2').value.trim();
+    if (!/^[0-9]{4,6}$/.test(a)) return void ($('lm').textContent = 'PIN harus 4–6 angka.');
+    if (a !== b) return void ($('lm').textContent = 'PIN tidak sama. Ulangi.');
+    sibuk($('ya'), true);
+    api('buatPin', DEV, ID, a).then(() => { INFO.perluPin = false; tutupLembar(); toast('PIN tersimpan. Ingat baik-baik.'); })
+      .catch(e => { sibuk($('ya'), false); $('lm').textContent = kode(e).teks; });
+  };
+}
 function muat() {
   if (!ID) return tampilPilih();
   return api('absenInfo', DEV, ID).then(d => {
@@ -236,6 +277,7 @@ function muat() {
     SELISIH = (h * 60 + m) - (now.getHours() * 60 + now.getMinutes());
     if (Math.abs(SELISIH) > 720) SELISIH = 0;
     tick(); tampil();
+    if (d.perluPin) setTimeout(formBuatPin, 600);
   }).catch(e => {
     const k = kode(e);
     if (k.kode === 'NAMA_TIDAK_ADA') { ID = null; simpan('absen_id', null); toast(k.teks); return tampilPilih(); }
@@ -243,6 +285,7 @@ function muat() {
       const [milik, teks] = [k.teks.split('|')[0], k.teks.split('|').slice(1).join('|')];
       ID = milik; simpan('absen_id', ID); toast(teks, 7000); return muat();
     }
+    if (k.kode === 'NAMA_PIN') { const id = ID; ID = null; simpan('absen_id', null); return formPinMasuk(id, k.teks); }
     if (k.kode === 'NAMA_TERDAFTAR') {
       ID = null; simpan('absen_id', null);
       $('loading').hidden = true; $('utama').hidden = true; $('pilih').hidden = true;
@@ -382,13 +425,33 @@ function formPulangMalam() {
     <button class="btn main" id="ya" type="button">Absen pulang sekarang</button><button class="btn sec" data-tutup type="button">Batal</button>`);
   $('ya').onclick = () => kirimPulang('', $('ya'));
 }
+/* ---------- Pilihan jam format 24 jam (sebagian HP menampilkan AM/PM dan mudah salah pilih) ---------- */
+function jam24(id, nilai) {
+  const v = String(nilai || ''), h = v.slice(0, 2), m = v.slice(3, 5);
+  const opsi = (n, pilih) => '<option value="">--</option>' + Array.from({ length: n }, (_, i) => String(i).padStart(2, '0'))
+    .map(x => `<option value="${x}"${x === pilih ? ' selected' : ''}>${x}</option>`).join('');
+  return `<span class="jam24" id="${id}" style="display:flex;gap:6px;align-items:center">
+    <select data-j="h" aria-label="Jam" style="flex:1">${opsi(24, h)}</select><b>:</b>
+    <select data-j="m" aria-label="Menit" style="flex:1">${opsi(60, m)}</select></span>`;
+}
+function pasangJam24() {
+  document.querySelectorAll('.jam24').forEach(el => {
+    if (el.dataset.siap) return; el.dataset.siap = '1';
+    const h = el.querySelector('[data-j="h"]'), m = el.querySelector('[data-j="m"]');
+    Object.defineProperty(el, 'value', {
+      get: () => h.value && m.value ? h.value + ':' + m.value : (h.value ? h.value + ':00' : ''),
+      set: v => { h.value = String(v || '').slice(0, 2); m.value = String(v || '').slice(3, 5); }
+    });
+    [h, m].forEach(s => s.addEventListener('change', () => { if (h.value && !m.value) m.value = '00'; el.dispatchEvent(new Event('input')); }));
+  });
+}
 function formPulangTertunda() {
   const t = INFO.pulangTertunda; if (!t) return;
   const batas = A.pulang || '17:00';
   bukaLembar(`<h2>Anda belum absen pulang</h2>
     <p style="margin:0 0 8px">Pada <b>${esc(t.tanggal)}</b> Anda tidak absen pulang. Isi jam pulang hari itu dulu, baru bisa absen masuk.</p>
     <p class="hint" style="margin:0 0 10px">Tercatat sebagai <b>diisi menyusul</b>.${!t.lembur ? '' : t.lembur.indexOf('Diakui') === 0 ? ' Lembur hari itu ' + esc(t.lembur.replace(/^Diakui · [^,]*, /, '')) + '.' : t.lembur.indexOf('Tidak') === 0 ? ' Lembur hari itu <b>tidak diakui</b> karena tidak ada absen pulang.' : ''}</p>
-    <label class="field">Jam pulang<input type="time" id="jp"></label>
+    <label class="field">Jam pulang (format 24 jam, mis. 18 : 30)${jam24('jp')}</label>
     <label class="field" id="fAl" hidden>Alasan pulang sebelum ${titik(batas)}<textarea id="al" maxlength="150"></textarea></label>
     <div class="msg" id="lm"></div>
     <button class="btn main" id="ya" type="button">Simpan, lanjut absen masuk</button><button class="btn sec" data-tutup type="button">Nanti</button>`);
@@ -617,8 +680,8 @@ function formLembur() {
     ${jenis.length ? `<label class="field">Jenis lembur<select id="jenis"><option value="">Pilih…</option>${jenis.map(j => `<option>${esc(j)}</option>`).join('')}</select></label>` : ''}
     <label class="field">Pekerjaan lembur<textarea id="ket" maxlength="200" placeholder="Mis. pengecoran pelat lantai 3, zona B"></textarea></label>
     ${jenis.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <label class="field">Mulai<input type="time" id="mulai" value="${now}"></label>
-      <label class="field">Selesai<input type="time" id="selesai"></label></div>
+      <label class="field">Mulai${jam24('mulai', now)}</label>
+      <label class="field">Selesai${jam24('selesai')}</label></div>
     <p class="hint" id="lama" style="margin:0"></p>` : ''}
     <div class="msg" id="lm"></div>
     <button class="btn main" id="ya" type="button">Simpan lembur</button><button class="btn sec" data-tutup type="button">Batal</button>`);
@@ -657,7 +720,7 @@ function sibuk(btn, on) {
   if (on) { btn.dataset.teks = btn.innerHTML; btn.innerHTML = '<span class="spin"></span>Mengirim…'; btn.disabled = true; }
   else if (btn.dataset.teks) { btn.innerHTML = btn.dataset.teks; btn.disabled = false; }
 }
-function bukaLembar(html) { $('panel').innerHTML = html; $('sheet').hidden = false; }
+function bukaLembar(html) { $('panel').innerHTML = html; $('sheet').hidden = false; pasangJam24(); }
 function tutupLembar() { $('sheet').hidden = true; $('panel').innerHTML = ''; }
 $('sheet').addEventListener('click', e => { if (e.target === $('sheet') || e.target.closest('[data-tutup]')) tutupLembar(); });
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
